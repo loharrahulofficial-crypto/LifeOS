@@ -119,6 +119,7 @@ export function usePomodoro() {
   // Handle timer completion
   useEffect(() => {
     if (timeLeft === 0 && isRunning) {
+      // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
       completeSession();
     }
   }, [timeLeft, isRunning, completeSession]);
@@ -133,8 +134,10 @@ export function usePomodoro() {
   // Sync timeLeft when config changes and timer is stopped
   useEffect(() => {
     if (!isRunning) {
+      // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
       setTimeLeft(getDuration(mode));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.workDuration, config.shortBreak, config.longBreak]);
 
   const toggleSound = useCallback(() => {

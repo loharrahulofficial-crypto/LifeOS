@@ -1,22 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
-
-const STORAGE_KEY = 'lifeos_gym_data';
-
-function loadFromStorage() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function saveToStorage(data) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch {}
-}
+import { useCallback, useMemo } from 'react';
+import { useLocalStorage } from './useLocalStorage';
 
 const defaultState = {
   workoutPlans: [],       // custom plans user creates
@@ -25,18 +8,14 @@ const defaultState = {
 };
 
 export function useGym() {
-  const [gymData, setGymData] = useState(() => {
-    const saved = loadFromStorage();
-    return saved || defaultState;
-  });
+  const [gymData, setGymData] = useLocalStorage('lifeos-gym', defaultState);
 
   const updateGymData = useCallback((updater) => {
     setGymData(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
-      saveToStorage(next);
       return next;
     });
-  }, []);
+  }, [setGymData]);
 
   // ── Workout Plans ──────────────────────────────────────────
   const createPlan = useCallback((plan) => {
@@ -174,11 +153,15 @@ export function useGym() {
   const finishSession = useCallback(() => {
     updateGymData(prev => {
       if (!prev.activeSession) return prev;
+      
+      const started = new Date(prev.activeSession.startedAt).getTime();
+      const ended = Date.now();
+
       const log = {
         ...prev.activeSession,
-        finishedAt: new Date().toISOString(),
+        finishedAt: new Date(ended).toISOString(),
         duration: Math.round(
-          (Date.now() - new Date(prev.activeSession.startedAt).getTime()) / 60000
+          (ended - started) / 60000
         ),
       };
       return {

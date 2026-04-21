@@ -7,21 +7,30 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "postinstall": "node postinstall.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
+    "@capacitor-community/text-to-speech": "^8.0.0",
     "@capacitor/android": "^8.3.0",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/browser": "^8.0.3",
     "@capacitor/cli": "^8.3.0",
     "@capacitor/core": "^8.3.0",
+    "@capacitor/preferences": "^8.0.1",
     "@tailwindcss/vite": "^4.2.2",
+    "firebase": "^12.12.0",
+    "lucide-react": "^1.8.0",
     "motion": "^12.38.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-is": "^19.2.5",
     "recharts": "^3.8.1",
     "tailwindcss": "^4.2.2"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@eslint/js": "^9.39.4",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

@@ -89,3 +89,22 @@ export function playSuccessChime() {
     console.warn('Audio playback failed:', e);
   }
 }
+
+export function playTick() {
+  try {
+    const ctx = getAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1200, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1, ctx.currentTime + 0.05);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.05);
+  } catch (e) {
+    console.warn('Audio playback failed:', e);
+  }
+}

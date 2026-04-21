@@ -1,19 +1,43 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { IconMap } from '../utils/IconMap';
 import { EXERCISES, MUSCLE_GROUPS, WORKOUT_TEMPLATES } from '../data/gymExercises';
+import NumberInput from './NumberInput';
+import BodyMap from './BodyMap';
 
-// ─────────────────────── SUB-COMPONENTS ───────────────────────
+// ─── CSS-only collapsible — zero JS physics, instant on Android ───
+function Collapse({ open, children }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (open) {
+      el.style.maxHeight = el.scrollHeight + 'px';
+      el.style.opacity = '1';
+    } else {
+      el.style.maxHeight = '0px';
+      el.style.opacity = '0';
+    }
+  }, [open]);
+  return (
+    <div ref={ref} style={{
+      maxHeight: '0px', opacity: '0', overflow: 'hidden',
+      transition: 'max-height 0.25s ease, opacity 0.2s ease',
+    }}>
+      {children}
+    </div>
+  );
+}
+
+// ─── Sub-components ───────────────────────────────────────────────
 
 function StatCard({ icon, label, value, sub }) {
   return (
-    <div
-      className="card-no-hover"
-      style={{ textAlign: 'center', padding: '1rem' }}
-    >
-      <div style={{ fontSize: '1.6rem', marginBottom: '0.25rem' }}>{icon}</div>
-      <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--accent)', lineHeight: 1 }}>{value}</div>
-      {sub && <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>{sub}</div>}
-      <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.3rem', fontWeight: 500 }}>{label}</div>
+    <div className="card-no-hover" style={{ textAlign: 'center', padding: '0.75rem 0.5rem', overflow: 'hidden', minWidth: 0 }}>
+      <div style={{ fontSize: '1.4rem', marginBottom: '0.2rem' }}>{icon}</div>
+      <div style={{ fontSize: 'clamp(1.1rem, 4vw, 1.6rem)', fontWeight: 800, color: 'var(--accent)', lineHeight: 1, wordBreak: 'break-all' }}>{value}</div>
+      {sub && <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '2px' }}>{sub}</div>}
+      <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', marginTop: '0.25rem', fontWeight: 500 }}>{label}</div>
     </div>
   );
 }
@@ -22,23 +46,13 @@ function DifficultyBadge({ level }) {
   const colors = { Beginner: '#22c55e', Intermediate: '#f59e0b', Advanced: '#ef4444' };
   return (
     <span style={{
-      padding: '0.2rem 0.55rem', borderRadius: 20, fontSize: '0.65rem', fontWeight: 700,
-      background: `${colors[level]}22`, color: colors[level], letterSpacing: '0.02em',
+      padding: '0.15rem 0.45rem', borderRadius: 20, fontSize: '0.6rem', fontWeight: 700,
+      background: `${colors[level]}22`, color: colors[level], flexShrink: 0,
     }}>{level}</span>
   );
 }
 
-function TimerBadge({ minutes }) {
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
-      padding: '0.2rem 0.55rem', borderRadius: 20, fontSize: '0.68rem', fontWeight: 600,
-      background: 'var(--accent-subtle)', color: 'var(--accent)',
-    }}>⏱ {minutes}m</span>
-  );
-}
-
-// REST TIMER
+// ─── REST TIMER (CSS-only animation) ───────────────────────────────
 function RestTimer({ defaultSeconds = 90, onClose }) {
   const [seconds, setSeconds] = useState(defaultSeconds);
   const [running, setRunning] = useState(true);
@@ -56,17 +70,15 @@ function RestTimer({ defaultSeconds = 90, onClose }) {
   const pct = ((defaultSeconds - seconds) / defaultSeconds) * 100;
 
   return (
-    <motion.div
-      initial={{ scale: 0.8, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.8, opacity: 0 }}
+    <div
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
         zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        animation: 'fadeIn 0.2s ease',
       }}
       onClick={onClose}
     >
-      <motion.div
+      <div
         style={{
           background: 'var(--bg-card)', borderRadius: 24, padding: '2rem',
           textAlign: 'center', width: 280, border: '1px solid var(--border-light)',
@@ -74,9 +86,7 @@ function RestTimer({ defaultSeconds = 90, onClose }) {
         }}
         onClick={e => e.stopPropagation()}
       >
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '1rem', fontWeight: 600, letterSpacing: '0.05em' }}>
-          REST TIMER
-        </p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '1rem', fontWeight: 600, letterSpacing: '0.05em' }}>REST TIMER</p>
         <div style={{ position: 'relative', width: 140, height: 140, margin: '0 auto 1.5rem' }}>
           <svg width="140" height="140" style={{ transform: 'rotate(-90deg)' }}>
             <circle cx="70" cy="70" r="60" fill="none" stroke="var(--ring-track)" strokeWidth="8" />
@@ -89,17 +99,14 @@ function RestTimer({ defaultSeconds = 90, onClose }) {
               style={{ transition: 'stroke-dashoffset 1s linear' }}
             />
           </svg>
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-          }}>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ fontSize: '2.2rem', fontWeight: 800, color: seconds <= 10 ? 'var(--danger)' : 'var(--text-primary)' }}>
               {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
             </span>
             {seconds === 0 && <span style={{ fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 700 }}>GO!</span>}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginBottom: '1rem' }}>
           {[60, 90, 120, 180].map(s => (
             <button key={s} onClick={() => { setSeconds(s); setRunning(true); }}
               style={{
@@ -111,270 +118,230 @@ function RestTimer({ defaultSeconds = 90, onClose }) {
             >{s}s</button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setRunning(r => !r)}>
             {running ? '⏸ Pause' : '▶ Resume'}
           </button>
           <button className="btn-primary" style={{ flex: 1 }} onClick={onClose}>Skip</button>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }
 
-// EXERCISE PICKER
+// ─── EXERCISE PICKER MODAL (pure CSS) ─────────────────────────────
 function ExercisePicker({ onSelect, onClose }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMuscle, setSelectedMuscle] = useState('all');
-  const [selectedSub, setSelectedSub] = useState('all');
+  const [activeGroup, setActiveGroup] = useState(null);
+  const [activeSub, setActiveSub] = useState(null);
   const [selectedEquip, setSelectedEquip] = useState('all');
-  const [selectedType, setSelectedType] = useState('all');
+  const [selectedDifficulty, setSelectedDifficulty] = useState('all');
 
-  const exercises = Object.entries(EXERCISES);
-  const equipmentOptions = ['all', ...new Set(exercises.map(([, v]) => v.equipment))];
-  const typeOptions = ['all', 'Compound', 'Isolation', 'Cardio'];
+  const exercises = useMemo(() => Object.entries(EXERCISES), []);
+  const equipmentOptions = useMemo(() => ['all', ...new Set(exercises.map(([, v]) => v.equipment))], [exercises]);
+  const difficultyOptions = ['all', 'Beginner', 'Intermediate', 'Advanced'];
 
-  const subGroups = selectedMuscle !== 'all'
-    ? Object.entries(MUSCLE_GROUPS[selectedMuscle]?.subGroups || {})
-    : [];
+  const filtered = useMemo(() => exercises.filter(([name, info]) => {
+    if (activeGroup && activeGroup !== 'all' && info.muscle !== activeGroup) return false;
+    if (activeSub && activeSub !== 'all' && info.sub !== activeSub) return false;
+    if (selectedEquip !== 'all' && info.equipment !== selectedEquip) return false;
+    if (selectedDifficulty !== 'all' && info.difficulty !== selectedDifficulty) return false;
+    if (searchQuery && !name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  }).slice(0, 100), [exercises, activeGroup, activeSub, selectedEquip, selectedDifficulty, searchQuery]);
 
-  const filtered = exercises.filter(([name, info]) => {
-    const matchMuscle = selectedMuscle === 'all' || info.muscle === selectedMuscle;
-    const matchSub = selectedSub === 'all' || info.sub === selectedSub;
-    const matchEquip = selectedEquip === 'all' || info.equipment === selectedEquip;
-    const matchType = selectedType === 'all' || info.type === selectedType;
-    const matchSearch = name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchMuscle && matchSub && matchEquip && matchType && matchSearch;
-  });
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
-        zIndex: 150, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-      }}
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-        style={{
-          background: 'var(--bg-secondary)', borderRadius: '24px 24px 0 0',
-          width: '100%', maxWidth: 680, maxHeight: '88vh',
-          display: 'flex', flexDirection: 'column', overflow: 'hidden',
-          border: '1px solid var(--border-light)', borderBottom: 'none',
-          boxShadow: '0 -20px 60px rgba(0,0,0,0.5)',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div style={{ padding: '1.25rem 1.25rem 0.75rem', borderBottom: '1px solid var(--border-light)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <h3 style={{ fontWeight: 800, fontSize: '1.05rem' }}>Add Exercise</h3>
-            <button onClick={onClose} className="btn-ghost" style={{ padding: '0.3rem 0.6rem', fontSize: '1.1rem' }}>✕</button>
+  return createPortal(
+    <div className="bottom-sheet-overlay" onClick={onClose}>
+      <div className="bottom-sheet-content" style={{ padding: '0', maxHeight: '92vh', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '1.25rem 1rem 0.75rem', borderBottom: '1px solid var(--border-light)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              {(activeGroup || searchQuery) && (
+                <button onClick={() => { 
+                  if (activeSub) { setActiveSub(null); } 
+                  else if (searchQuery) { setSearchQuery(''); setActiveSub(null); setActiveGroup(null); }
+                  else { setActiveGroup(null); setActiveSub(null); }
+                }} className="btn-ghost" style={{ padding: '0.2rem 0.5rem', fontSize: '1.4rem', color: 'var(--text-muted)' }}>←</button>
+              )}
+              <h3 style={{ fontWeight: 800, fontSize: '1.2rem', letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>
+                {activeSub && activeSub !== 'all' ? MUSCLE_GROUPS[activeGroup]?.subGroups?.[activeSub]?.label : activeGroup && activeGroup !== 'all' ? MUSCLE_GROUPS[activeGroup].label : searchQuery ? 'Search Results' : 'Add Exercise'}
+              </h3>
+            </div>
+            <button onClick={onClose} className="btn-ghost" style={{ padding: '0.3rem 0.6rem', fontSize: '1.2rem', color: 'var(--text-muted)' }}><IconMap name='focus' size={14} /></button>
           </div>
-          <input
-            className="input-field"
-            placeholder="🔍 Search exercises..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            autoFocus
+          
+          <input className="input-field" placeholder="🔍 Search any exercise..." value={searchQuery} 
+            onChange={e => { setSearchQuery(e.target.value); if(e.target.value) { setActiveGroup('all'); setActiveSub('all'); } }} 
+            style={{ padding: '0.8rem 1rem', borderRadius: 14, fontSize: '0.9rem' }} 
           />
-        </div>
-
-        {/* Filters */}
-        <div style={{ padding: '0.75rem 1.25rem', borderBottom: '1px solid var(--border-light)' }}>
-          {/* Muscle Group */}
-          <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.4rem', scrollbarWidth: 'none' }}>
-            <button
-              className={`chip ${selectedMuscle === 'all' ? 'active' : ''}`}
-              onClick={() => { setSelectedMuscle('all'); setSelectedSub('all'); }}
-            >All</button>
-            {Object.entries(MUSCLE_GROUPS).map(([key, mg]) => (
-              <button
-                key={key}
-                className={`chip ${selectedMuscle === key ? 'active' : ''}`}
-                onClick={() => { setSelectedMuscle(key); setSelectedSub('all'); }}
-                style={{ whiteSpace: 'nowrap' }}
-              >
-                {mg.icon} {mg.label}
-              </button>
-            ))}
-          </div>
-          {/* Sub Group */}
-          {subGroups.length > 0 && (
-            <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', marginTop: '0.4rem', paddingBottom: '0.4rem', scrollbarWidth: 'none' }}>
-              <button className={`chip ${selectedSub === 'all' ? 'active' : ''}`} onClick={() => setSelectedSub('all')}>All</button>
-              {subGroups.map(([key, sg]) => (
-                <button
-                  key={key}
-                  className={`chip ${selectedSub === key ? 'active' : ''}`}
-                  onClick={() => setSelectedSub(key)}
-                  style={{ whiteSpace: 'nowrap', fontSize: '0.72rem' }}
-                >{sg.label}</button>
-              ))}
+          
+          {(activeSub || searchQuery) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.75rem', marginBottom: '0.25rem' }}>
+              <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: '2px' }}>
+                {equipmentOptions.slice(0, 10).map(e => (
+                  <button key={e} className={`chip ${selectedEquip === e ? 'active' : ''}`} onClick={() => setSelectedEquip(e)} style={{ whiteSpace: 'nowrap', fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}>
+                    {e === 'all' ? 'All Equipment' : e}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: '2px' }}>
+                {difficultyOptions.map(d => (
+                  <button key={d} className={`chip ${selectedDifficulty === d ? 'active' : ''}`} onClick={() => setSelectedDifficulty(d)} style={{ whiteSpace: 'nowrap', fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}>
+                    {d === 'all' ? 'Any Difficulty' : d}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
-          {/* Equipment & Type */}
-          <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
-            {equipmentOptions.slice(0, 8).map(e => (
-              <button key={e} className={`chip ${selectedEquip === e ? 'active' : ''}`} onClick={() => setSelectedEquip(e)}
-                style={{ fontSize: '0.72rem', padding: '0.25rem 0.65rem' }}
-              >{e === 'all' ? '🏋️ All Equipment' : e}</button>
-            ))}
-            <span style={{ width: '100%', height: 0 }} />
-            {typeOptions.map(t => (
-              <button key={t} className={`chip ${selectedType === t ? 'active' : ''}`} onClick={() => setSelectedType(t)}
-                style={{ fontSize: '0.72rem', padding: '0.25rem 0.65rem' }}
-              >{t === 'all' ? 'Any Type' : t}</button>
-            ))}
-          </div>
         </div>
 
-        {/* Results */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem 1.25rem' }}>
-          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.5rem', fontWeight: 600 }}>
-            {filtered.length} EXERCISES
-          </p>
-          {filtered.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🔍</div>
-              <p>No exercises found</p>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {!activeGroup && !searchQuery ? (
+            // Step 1: Big Grid for Muscle Groups
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', paddingBottom: '2rem' }}>
+              {Object.entries(MUSCLE_GROUPS).map(([key, mg]) => (
+                <button key={key} onClick={() => setActiveGroup(key)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    padding: '1.5rem 0.5rem', borderRadius: 20, border: '1px solid var(--border-light)',
+                    background: `linear-gradient(145deg, var(--bg-card), ${mg.color}15)`,
+                    cursor: 'pointer', textAlign: 'center', transition: 'transform 0.15s, box-shadow 0.15s',
+                  }}
+                >
+                  <span style={{ fontSize: '3rem', marginBottom: '0.75rem', filter: `drop-shadow(0 4px 12px ${mg.color}44)` }}><IconMap name={mg.icon} size={48} /></span>
+                  <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)', letterSpacing: '0.02em' }}>{mg.label}</span>
+                </button>
+              ))}
+            </div>
+          ) : activeGroup && !activeSub && !searchQuery ? (
+            // Step 2: Grid for Sub-Muscles
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', paddingBottom: '2rem' }}>
+              <button onClick={() => setActiveSub('all')}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  padding: '1.25rem 0.5rem', borderRadius: 16, border: '1px solid var(--border-light)',
+                  background: `linear-gradient(145deg, var(--bg-card), var(--accent-glow))`,
+                  cursor: 'pointer', textAlign: 'center',
+                }}
+              >
+                <span style={{ fontSize: '2rem', marginBottom: '0.5rem' }}><IconMap name='star' size={40} /></span>
+                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>All {MUSCLE_GROUPS[activeGroup]?.label}</span>
+              </button>
+              {Object.entries(MUSCLE_GROUPS[activeGroup]?.subGroups || {}).map(([key, sg]) => (
+                <button key={key} onClick={() => setActiveSub(key)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    padding: '1.25rem 0.5rem', borderRadius: 16, border: '1px solid var(--border-light)',
+                    background: `linear-gradient(145deg, var(--bg-card), ${MUSCLE_GROUPS[activeGroup].color}12)`,
+                    cursor: 'pointer', textAlign: 'center',
+                  }}
+                >
+                  <span style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-primary)' }}>{sg.label}</span>
+                </button>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}><IconMap name='focus' size={48} /></div>
+              <p style={{ fontWeight: 600 }}>No exercises found</p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <div style={{ paddingBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {filtered.map(([name, info]) => {
                 const mg = MUSCLE_GROUPS[info.muscle];
                 return (
-                  <motion.button
-                    key={name}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => { onSelect(name); onClose(); }}
+                  <button key={name} onClick={() => { onSelect(name); onClose(); }}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: '0.75rem',
-                      padding: '0.75rem 1rem', borderRadius: 12,
+                      display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.85rem', borderRadius: 14,
                       border: '1px solid var(--border-light)', background: 'var(--bg-card)',
-                      cursor: 'pointer', textAlign: 'left', width: '100%',
-                      fontFamily: 'inherit', transition: 'all 0.15s ease',
+                      cursor: 'pointer', textAlign: 'left', width: '100%', fontFamily: 'inherit',
                     }}
                   >
                     <span style={{
-                      width: 36, height: 36, borderRadius: 10, background: `${mg.color}22`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '1.1rem', flexShrink: 0,
-                    }}>{mg.icon}</span>
+                      width: 40, height: 40, borderRadius: 12, background: `${mg?.color || 'var(--accent)'}22`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', flexShrink: 0,
+                    }}>{mg?.icon || '🏋️'}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '1px' }}>
-                        {mg?.subGroups[info.sub]?.label || info.sub} · {info.equipment}
-                      </div>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{name}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', fontWeight: 500 }}>{info.equipment} · {info.type}</div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem', flexShrink: 0 }}>
-                      <DifficultyBadge level={info.difficulty} />
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 500 }}>{info.type}</span>
-                    </div>
-                  </motion.button>
+                    <DifficultyBadge level={info.difficulty} />
+                  </button>
                 );
               })}
             </div>
           )}
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
-// SET ROW
-function SetRow({ set, index, onToggle, onUpdate, onRemove, isCardio }) {
+// ─── SET ROW (plain div, no motion) ───────────────────────────────
+function SetRow({ set, index, onToggle, onUpdate, isCardio }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-      style={{
-        display: 'grid',
-        gridTemplateColumns: isCardio ? '28px 1fr 1fr 36px' : '28px 1fr 1fr 36px',
-        gap: '0.4rem', alignItems: 'center',
-        padding: '0.4rem 0',
-        borderBottom: '1px solid var(--border-light)',
-        opacity: set.completed ? 0.6 : 1,
-      }}
-    >
+    <div style={{
+      display: 'grid', gridTemplateColumns: '28px 1fr 1fr 36px',
+      gap: '0.4rem', alignItems: 'center',
+      padding: '0.4rem 0', borderBottom: '1px solid var(--border-light)',
+      opacity: set.completed ? 0.6 : 1, transition: 'opacity 0.15s',
+    }}>
       <span style={{
         width: 28, height: 28, borderRadius: 8,
         background: set.completed ? 'var(--accent)' : 'var(--bg-input)',
         border: `1px solid ${set.completed ? 'var(--accent)' : 'var(--border)'}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: '0.72rem', fontWeight: 700, color: set.completed ? '#000' : 'var(--text-muted)',
-        flexShrink: 0,
       }}>{index + 1}</span>
-
-      <input
-        type="number"
+      <NumberInput
         value={set.reps}
-        onChange={e => onUpdate('reps', Number(e.target.value))}
-        style={{
-          background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)',
-          borderRadius: 8, padding: '0.4rem 0.5rem', textAlign: 'center',
-          fontSize: '0.88rem', fontWeight: 600, fontFamily: 'inherit', width: '100%',
-          outline: 'none',
-        }}
+        onChange={val => onUpdate('reps', val)}
+        min={0}
         placeholder={isCardio ? 'sec' : 'reps'}
+        style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 8, padding: '0.4rem 0.5rem', textAlign: 'center', fontSize: '0.88rem', fontWeight: 600, fontFamily: 'inherit', width: '100%', outline: 'none' }}
       />
-      <input
-        type="number"
+      <NumberInput
         value={set.weight}
-        onChange={e => onUpdate('weight', Number(e.target.value))}
-        style={{
-          background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)',
-          borderRadius: 8, padding: '0.4rem 0.5rem', textAlign: 'center',
-          fontSize: '0.88rem', fontWeight: 600, fontFamily: 'inherit', width: '100%',
-          outline: 'none',
-        }}
+        onChange={val => onUpdate('weight', val)}
+        min={0}
         placeholder={isCardio ? 'km' : 'kg'}
+        style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 8, padding: '0.4rem 0.5rem', textAlign: 'center', fontSize: '0.88rem', fontWeight: 600, fontFamily: 'inherit', width: '100%', outline: 'none' }}
       />
-      <motion.button
-        whileTap={{ scale: 0.85 }}
-        onClick={onToggle}
+      <button onClick={onToggle}
         style={{
           width: 32, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer',
           background: set.completed ? 'var(--success)' : 'var(--bg-input)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem',
-          transition: 'all 0.2s ease',
+          transition: 'background 0.15s ease', color: set.completed ? '#000' : 'var(--text-muted)',
         }}
-      >
-        {set.completed ? '✓' : '○'}
-      </motion.button>
-    </motion.div>
+      >{set.completed ? '✓' : '○'}</button>
+    </div>
   );
 }
 
-// ACTIVE SESSION EXERCISE CARD
-function SessionExerciseCard({ ex, onToggleSet, onUpdateSet, onAddSet, onRemove, onAddNote, gymProps }) {
+// ─── SESSION EXERCISE CARD ─────────────────────────────────────────
+function SessionExerciseCard({ ex, onToggleSet, onUpdateSet, onAddSet, onRemove, gymProps, levelProps }) {
   const [showTimer, setShowTimer] = useState(false);
-  const [timerSecs, setTimerSecs] = useState(ex.restTimer || 90);
   const exInfo = EXERCISES[ex.name] || {};
-  const completedSets = ex.sets.filter(s => s.completed).length;
+  const safeSets = ex.sets || [];
+  const completedSets = safeSets.filter(s => s.completed).length;
   const isCardio = exInfo.type === 'Cardio';
 
-  const lastCompleted = ex.sets.filter(s => s.completed).at(-1);
-  const handleComplete = (setId) => {
+  const handleComplete = useCallback((setId) => {
+    const set = safeSets.find(s => s.id === setId);
     onToggleSet(ex.id, setId);
-    const set = ex.sets.find(s => s.id === setId);
-    if (!set?.completed) setShowTimer(true); // show timer when marking complete
-  };
+    if (!set?.completed) {
+      setShowTimer(true);
+      if (levelProps) {
+        levelProps.addXP(10);
+        levelProps.updateStat('str', 1);
+      }
+    }
+  }, [safeSets, ex.id, onToggleSet, levelProps]);
 
   return (
-    <div
-      className="card-no-hover"
-      style={{ marginBottom: '0.75rem', padding: '1rem' }}
-    >
-      {/* Header */}
+    <div className="card-no-hover" style={{ marginBottom: '0.75rem', padding: '1rem' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.75rem' }}>
         <div style={{
           width: 40, height: 40, borderRadius: 10, flexShrink: 0,
@@ -385,320 +352,174 @@ function SessionExerciseCard({ ex, onToggleSet, onUpdateSet, onAddSet, onRemove,
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--accent)' }}>{ex.name}</div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-            {exInfo.equipment} · {exInfo.type}
-          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>{exInfo.equipment} · {exInfo.type}</div>
         </div>
         <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-          <span style={{
-            fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)',
-            background: 'var(--bg-input)', padding: '0.2rem 0.5rem', borderRadius: 8,
-          }}>{completedSets}/{ex.sets.length} sets</span>
-          <button onClick={onRemove} className="btn-ghost"
-            style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>✕</button>
+          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', background: 'var(--bg-input)', padding: '0.2rem 0.5rem', borderRadius: 8 }}>{completedSets}/{safeSets.length}</span>
+          <button onClick={onRemove} className="btn-ghost" style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}><IconMap name='focus' size={14} /></button>
         </div>
       </div>
 
-      {/* Progress bar */}
       <div className="progress-bar-track" style={{ marginBottom: '0.75rem', height: 4 }}>
         <div className="progress-bar-fill" style={{
-          width: `${(completedSets / ex.sets.length) * 100}%`,
+          width: `${safeSets.length > 0 ? (completedSets / safeSets.length) * 100 : 0}%`,
           background: 'linear-gradient(90deg, var(--gradient-start), var(--gradient-end))',
         }} />
       </div>
 
-      {/* Set header */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: '28px 1fr 1fr 36px',
-        gap: '0.4rem', padding: '0 0 0.3rem',
-        borderBottom: '1px solid var(--border-light)', marginBottom: '0.25rem',
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 36px', gap: '0.4rem', padding: '0 0 0.3rem', borderBottom: '1px solid var(--border-light)', marginBottom: '0.25rem' }}>
         <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center' }}>SET</span>
-        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center' }}>
-          {isCardio ? 'SECS' : 'REPS'}
-        </span>
-        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center' }}>
-          {isCardio ? 'KM' : 'KG'}
-        </span>
-        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center' }}>✓</span>
+        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center' }}>{isCardio ? 'SECS' : 'REPS'}</span>
+        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center' }}>{isCardio ? 'KM' : 'KG'}</span>
+        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center' }}><IconMap name='tasks' size={14} /></span>
       </div>
 
-      {/* Sets */}
-      <AnimatePresence>
-        {ex.sets.map((set, i) => (
-          <SetRow
-            key={set.id}
-            set={set}
-            index={i}
-            isCardio={isCardio}
-            onToggle={() => handleComplete(set.id)}
-            onUpdate={(field, val) => onUpdateSet(ex.id, set.id, field, val)}
-            onRemove={() => gymProps.removeSetFromExercise(ex.id, set.id)}
-          />
-        ))}
-      </AnimatePresence>
+      {safeSets.map((set, i) => (
+        <SetRow
+          key={set.id} set={set} index={i} isCardio={isCardio}
+          onToggle={() => handleComplete(set.id)}
+          onUpdate={(field, val) => onUpdateSet(ex.id, set.id, field, val)}
+        />
+      ))}
 
-      {/* Actions */}
       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-        <button
-          onClick={() => gymProps.addSetToExercise(ex.id)}
-          className="btn-secondary"
-          style={{ flex: 1, padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}
-        >
-          ⊕ Add Set
-        </button>
-        <button
-          onClick={() => setShowTimer(true)}
-          style={{
-            padding: '0.45rem 0.75rem', borderRadius: 10, border: '1px solid var(--border)',
-            background: 'var(--bg-input)', color: 'var(--accent)', cursor: 'pointer',
-            fontSize: '0.8rem', fontFamily: 'inherit', fontWeight: 600,
-          }}
-        >⏱ Rest</button>
+        <button onClick={() => gymProps.addSetToExercise(ex.id)} className="btn-secondary" style={{ flex: 1, padding: '0.45rem 0.75rem', fontSize: '0.8rem' }}><IconMap name='focus' size={18} /> Add Set</button>
+        <button onClick={() => setShowTimer(true)}
+          style={{ padding: '0.45rem 0.75rem', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--accent)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'inherit', fontWeight: 600 }}
+        ><IconMap name='focus' size={14} /> Rest</button>
       </div>
 
-      {/* Notes */}
-      <input
-        className="input-field"
-        placeholder="📝 Add notes..."
-        value={ex.notes}
+      <input className="input-field" placeholder="📝 Add notes..." value={ex.notes}
         onChange={e => gymProps.updateSessionExercise(ex.id, { notes: e.target.value })}
-        style={{ marginTop: '0.5rem', fontSize: '0.8rem', padding: '0.4rem 0.75rem' }}
-      />
+        style={{ marginTop: '0.5rem', fontSize: '0.8rem', padding: '0.4rem 0.75rem' }} />
 
-      {showTimer && (
-        <AnimatePresence>
-          <RestTimer defaultSeconds={timerSecs} onClose={() => setShowTimer(false)} />
-        </AnimatePresence>
-      )}
+      {showTimer && <RestTimer defaultSeconds={90} onClose={() => setShowTimer(false)} />}
     </div>
   );
 }
 
-// ACTIVE SESSION VIEW
-function ActiveSessionView({ session, gymProps }) {
+// ─── ACTIVE SESSION ────────────────────────────────────────────────
+function ActiveSessionView({ session, gymProps, levelProps }) {
   const [showExPicker, setShowExPicker] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [showFinishConfirm, setShowFinishConfirm] = useState(false);
 
   useEffect(() => {
     const start = new Date(session.startedAt).getTime();
-    const interval = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - start) / 1000));
-    }, 1000);
+    const interval = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
     return () => clearInterval(interval);
   }, [session.startedAt]);
 
-  const totalSets = session.exercises.reduce((a, ex) => a + ex.sets.length, 0);
-  const completedSets = session.exercises.reduce((a, ex) => a + ex.sets.filter(s => s.completed).length, 0);
-  const totalVolume = session.exercises.reduce((a, ex) =>
-    a + ex.sets.filter(s => s.completed).reduce((b, s) => b + s.reps * s.weight, 0), 0);
-
-  const formatTime = (s) => `${Math.floor(s / 3600).toString().padStart(2, '0')}:${Math.floor((s % 3600) / 60).toString().padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  const totalSets = (session.exercises || []).reduce((a, ex) => a + (ex.sets?.length || 0), 0);
+  const completedSets = (session.exercises || []).reduce((a, ex) => a + (ex.sets?.filter(s => s.completed)?.length || 0), 0);
+  const totalVolume = (session.exercises || []).reduce((a, ex) => a + (ex.sets?.filter(s => s.completed)?.reduce((b, s) => b + (s.reps || 0) * (s.weight || 0), 0) || 0), 0);
+  const formatTime = s => `${Math.floor(s / 3600).toString().padStart(2, '0')}:${Math.floor((s % 3600) / 60).toString().padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
   return (
     <div>
-      {/* Session Header */}
       <div className="card-no-hover" style={{ marginBottom: '1rem', padding: '1rem 1.25rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
           <div>
             <h2 style={{ fontWeight: 800, fontSize: '1.1rem' }}>{session.name}</h2>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              {session.exercises.length} exercises
-            </div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>{session.exercises.length} exercises</div>
           </div>
-          <div style={{
-            fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent)',
-            fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em',
-          }}>
-            {formatTime(elapsed)}
-          </div>
+          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>{formatTime(elapsed)}</div>
         </div>
 
-        {/* Progress */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.5rem', marginBottom: '0.75rem' }}>
           {[
             { label: 'Sets Done', value: `${completedSets}/${totalSets}` },
             { label: 'Volume', value: `${totalVolume.toLocaleString()}kg` },
             { label: 'Progress', value: `${totalSets ? Math.round((completedSets / totalSets) * 100) : 0}%` },
           ].map(item => (
-            <div key={item.label} style={{
-              background: 'var(--bg-input)', borderRadius: 10, padding: '0.5rem',
-              textAlign: 'center',
-            }}>
+            <div key={item.label} style={{ background: 'var(--bg-input)', borderRadius: 10, padding: '0.5rem', textAlign: 'center' }}>
               <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--accent)' }}>{item.value}</div>
               <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 500 }}>{item.label}</div>
             </div>
           ))}
         </div>
         <div className="progress-bar-track" style={{ height: 5 }}>
-          <div className="progress-bar-fill" style={{
-            width: `${totalSets ? (completedSets / totalSets) * 100 : 0}%`,
-            background: 'linear-gradient(90deg, var(--gradient-start), var(--gradient-end))',
-          }} />
+          <div className="progress-bar-fill" style={{ width: `${totalSets ? (completedSets / totalSets) * 100 : 0}%`, background: 'linear-gradient(90deg, var(--gradient-start), var(--gradient-end))' }} />
         </div>
 
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-          <button
-            className="btn-primary"
-            style={{ flex: 1 }}
-            onClick={() => setShowFinishConfirm(true)}
-          >🏁 Finish Workout</button>
-          <button
-            className="btn-secondary"
-            onClick={() => gymProps.discardSession()}
-            style={{ color: 'var(--danger)', borderColor: 'var(--danger-bg)' }}
-          >Discard</button>
+          <button className="btn-primary" style={{ flex: 1 }} onClick={() => setShowFinishConfirm(true)}><IconMap name='tasks' size={18} /> Finish Workout</button>
+          <button className="btn-secondary" onClick={() => gymProps.discardSession()} style={{ color: 'var(--danger)', borderColor: 'var(--danger-bg)' }}>Discard</button>
         </div>
       </div>
 
-      {/* Exercises */}
-      <AnimatePresence>
-        {session.exercises.map(ex => (
-          <SessionExerciseCard
-            key={ex.id}
-            ex={ex}
-            gymProps={gymProps}
-            onToggleSet={(exId, setId) => gymProps.toggleSetCompleted(exId, setId)}
-            onUpdateSet={(exId, setId, field, val) => gymProps.updateSetValue(exId, setId, field, val)}
-            onAddSet={() => gymProps.addSetToExercise(ex.id)}
-            onRemove={() => gymProps.removeExerciseFromSession(ex.id)}
-            onAddNote={note => gymProps.updateSessionExercise(ex.id, { notes: note })}
-          />
-        ))}
-      </AnimatePresence>
+      {session.exercises.map(ex => (
+        <SessionExerciseCard key={ex.id} ex={ex} gymProps={gymProps} levelProps={levelProps}
+          onToggleSet={(exId, setId) => gymProps.toggleSetCompleted(exId, setId)}
+          onUpdateSet={(exId, setId, field, val) => gymProps.updateSetValue(exId, setId, field, val)}
+          onAddSet={() => gymProps.addSetToExercise(ex.id)}
+          onRemove={() => gymProps.removeExerciseFromSession(ex.id)}
+        />
+      ))}
 
-      {/* Add Exercise */}
-      <motion.button
-        whileTap={{ scale: 0.97 }}
-        onClick={() => setShowExPicker(true)}
+      <button onClick={() => setShowExPicker(true)}
         style={{
-          width: '100%', padding: '0.9rem', borderRadius: 14,
-          border: '2px dashed var(--border)', background: 'transparent',
-          color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit',
-          fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', gap: '0.5rem',
+          width: '100%', padding: '0.9rem', borderRadius: 14, border: '2px dashed var(--border)',
+          background: 'transparent', color: 'var(--accent)', cursor: 'pointer',
+          fontFamily: 'inherit', fontWeight: 600, fontSize: '0.9rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
         }}
-      >
-        ⊕ Add Exercise
-      </motion.button>
+      ><IconMap name='focus' size={18} /> Add Exercise</button>
 
-      {/* Modals */}
-      <AnimatePresence>
-        {showExPicker && (
-          <ExercisePicker
-            onSelect={(name) => gymProps.addExerciseToSession(name)}
-            onClose={() => setShowExPicker(false)}
-          />
-        )}
-      </AnimatePresence>
+      {showExPicker && <ExercisePicker onSelect={name => gymProps.addExerciseToSession(name)} onClose={() => setShowExPicker(false)} />}
 
-      {/* Finish Confirm */}
-      <AnimatePresence>
-        {showFinishConfirm && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
-              backdropFilter: 'blur(8px)', zIndex: 200,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              style={{
-                background: 'var(--bg-card)', borderRadius: 20, padding: '1.5rem',
-                width: '100%', maxWidth: 340, border: '1px solid var(--border-light)',
-                textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-              }}
-            >
-              <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>🏆</div>
-              <h3 style={{ fontWeight: 800, fontSize: '1.1rem', marginBottom: '0.35rem' }}>Finish Workout?</h3>
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
-                {completedSets} sets completed · {totalVolume.toLocaleString()}kg total volume
-              </p>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowFinishConfirm(false)}>
-                  Keep Going
-                </button>
-                <button className="btn-primary" style={{ flex: 1 }} onClick={() => { gymProps.finishSession(); setShowFinishConfirm(false); }}>
-                  🏁 Finish
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {showFinishConfirm && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', animation: 'fadeIn 0.2s ease' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '1.5rem', width: '100%', maxWidth: 340, border: '1px solid var(--border-light)', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.5)', animation: 'scaleIn 0.2s ease' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}><IconMap name='gold' size={48} /></div>
+            <h3 style={{ fontWeight: 800, fontSize: '1.1rem', marginBottom: '0.35rem' }}>Finish Workout?</h3>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+              {completedSets} sets completed · {totalVolume.toLocaleString()}kg total volume
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setShowFinishConfirm(false)}>Keep Going</button>
+              <button className="btn-primary" style={{ flex: 1 }} onClick={() => { gymProps.finishSession(); setShowFinishConfirm(false); }}><IconMap name='tasks' size={18} /> Finish</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
 
-// TEMPLATE CARD
+// ─── TEMPLATE CARD ────────────────────────────────────────────────
 function TemplateCard({ template, onStart, color }) {
-  const diffColors = { Beginner: '#22c55e', Intermediate: '#f59e0b', Advanced: '#ef4444' };
-
   return (
-    <motion.div
-      whileTap={{ scale: 0.98 }}
-      style={{
-        background: 'var(--bg-card)', borderRadius: 16,
-        border: '1px solid var(--border-light)',
-        padding: '1rem', cursor: 'pointer', position: 'relative', overflow: 'hidden',
-      }}
-    >
-      {/* Accent line */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: 3,
-        background: `linear-gradient(90deg, ${color}, ${color}88)`, borderRadius: '16px 16px 0 0',
-      }} />
-
+    <div style={{
+      background: 'var(--bg-card)', borderRadius: 16, border: '1px solid var(--border-light)',
+      padding: '1rem', position: 'relative', overflow: 'hidden',
+      transition: 'background 0.15s',
+    }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${color}, ${color}88)`, borderRadius: '16px 16px 0 0' }} />
       <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-        <div style={{
-          width: 44, height: 44, borderRadius: 12, background: `${color}22`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '1.4rem', flexShrink: 0,
-        }}>{template.icon}</div>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: `${color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', flexShrink: 0 }}><IconMap name={template.icon} size={24} /></div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.2rem' }}>{template.name}</div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.5rem', lineHeight: 1.4 }}>
-            {template.description}
-          </div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.5rem', lineHeight: 1.4 }}>{template.description}</div>
           <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <TimerBadge minutes={template.estimatedTime} />
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.55rem', borderRadius: 20, fontSize: '0.68rem', fontWeight: 600, background: 'var(--accent-subtle)', color: 'var(--accent)' }}>⏱ {template.estimatedTime}m</span>
             <DifficultyBadge level={template.difficulty} />
-            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-              {template.exercises.length} exercises
-            </span>
+            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{template.exercises.length} exercises</span>
           </div>
         </div>
       </div>
-
-      {/* Exercises preview */}
-      <div style={{
-        marginTop: '0.75rem', padding: '0.5rem 0.75rem',
-        background: 'var(--bg-input)', borderRadius: 8,
-        fontSize: '0.72rem', color: 'var(--text-muted)',
-      }}>
-        {template.exercises.slice(0, 3).map(e => e.name).join(' · ')}
-        {template.exercises.length > 3 && ` +${template.exercises.length - 3} more`}
+      <div style={{ marginTop: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--bg-input)', borderRadius: 8, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+        {template.exercises.slice(0, 3).map(e => e.name).join(' · ')}{template.exercises.length > 3 && ` +${template.exercises.length - 3} more`}
       </div>
-
-      <button
-        className="btn-primary"
-        onClick={(e) => { e.stopPropagation(); onStart(template); }}
-        style={{ width: '100%', marginTop: '0.75rem', justifyContent: 'center', padding: '0.55rem' }}
-      >
+      <button className="btn-primary" onClick={e => { e.stopPropagation(); onStart(template); }} style={{ width: '100%', marginTop: '0.75rem', justifyContent: 'center', padding: '0.55rem' }}>
         ▶ Start Workout
       </button>
-    </motion.div>
+    </div>
   );
 }
 
-// CREATE PLAN MODAL
+// ─── CREATE PLAN MODAL ────────────────────────────────────────────
 function CreatePlanModal({ onSave, onClose }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -707,22 +528,10 @@ function CreatePlanModal({ onSave, onClose }) {
   const [difficulty, setDifficulty] = useState('Intermediate');
   const [exercises, setExercises] = useState([]);
   const [showExPicker, setShowExPicker] = useState(false);
-  const [exPickerIdx, setExPickerIdx] = useState(null);
+  const scrollRef = useRef(null);
 
   const icons = ['🏋️', '💪', '🔥', '⚡', '🎯', '🏆', '⭐', '🦵', '🫁', '🔙', '🏅', '🌟'];
   const colors = ['#f59e0b', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#f97316', '#06b6d4'];
-
-  const addExercise = (name) => {
-    setExercises(prev => [...prev, { name, sets: 3, reps: 10, weight: 0 }]);
-  };
-
-  const updateExercise = (idx, field, value) => {
-    setExercises(prev => prev.map((ex, i) => i === idx ? { ...ex, [field]: value } : ex));
-  };
-
-  const removeExercise = (idx) => {
-    setExercises(prev => prev.filter((_, i) => i !== idx));
-  };
 
   const handleSave = () => {
     if (!name.trim() || exercises.length === 0) return;
@@ -730,181 +539,108 @@ function CreatePlanModal({ onSave, onClose }) {
     onClose();
   };
 
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
-        backdropFilter: 'blur(8px)', zIndex: 120,
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-      }}
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-        style={{
-          background: 'var(--bg-secondary)', borderRadius: '24px 24px 0 0',
-          width: '100%', maxWidth: 680, maxHeight: '92vh',
-          display: 'flex', flexDirection: 'column', overflow: 'hidden',
-          border: '1px solid var(--border-light)', borderBottom: 'none',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ fontWeight: 800, fontSize: '1.05rem' }}>Create Workout Plan</h3>
-          <button onClick={onClose} className="btn-ghost" style={{ fontSize: '1.1rem', padding: '0.3rem 0.6rem' }}>✕</button>
-        </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem' }}>
-          {/* Name + Desc */}
-          <div style={{ marginBottom: '0.75rem' }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>PLAN NAME</label>
-            <input className="input-field" placeholder="e.g. My Push Day" value={name} onChange={e => setName(e.target.value)} />
-          </div>
-          <div style={{ marginBottom: '0.75rem' }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>DESCRIPTION</label>
-            <input className="input-field" placeholder="Brief description..." value={description} onChange={e => setDescription(e.target.value)} />
+  return createPortal(
+    <>
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', animation: 'fadeIn 0.2s ease' }} onClick={onClose}>
+        <div style={{ background: 'var(--bg-card)', width: '100%', maxHeight: '90vh', borderRadius: '20px 20px 0 0', display: 'flex', flexDirection: 'column', animation: 'slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1)' }} onClick={e => e.stopPropagation()}>
+          
+          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+            <h3 style={{ fontWeight: 800, fontSize: '1.05rem' }}>Create Workout Plan</h3>
+            <button onClick={onClose} className="btn-ghost" style={{ fontSize: '1.1rem', padding: '0.3rem 0.6rem' }}><IconMap name='focus' size={14} /></button>
           </div>
 
-          {/* Icon */}
-          <div style={{ marginBottom: '0.75rem' }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>ICON</label>
-            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-              {icons.map(ic => (
-                <button key={ic} onClick={() => setIcon(ic)}
-                  style={{
-                    width: 40, height: 40, borderRadius: 10, border: `2px solid ${icon === ic ? 'var(--accent)' : 'var(--border)'}`,
-                    background: icon === ic ? 'var(--accent-subtle)' : 'var(--bg-input)',
-                    fontSize: '1.3rem', cursor: 'pointer',
-                  }}>{ic}</button>
-              ))}
+          <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', WebkitOverflowScrolling: 'touch' }}>
+            <div style={{ marginBottom: '0.75rem' }}>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>PLAN NAME</label>
+              <input className="input-field" placeholder="e.g. My Push Day" value={name} onChange={e => setName(e.target.value)} />
             </div>
-          </div>
-
-          {/* Color */}
-          <div style={{ marginBottom: '0.75rem' }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>COLOR</label>
-            <div style={{ display: 'flex', gap: '0.35rem' }}>
-              {colors.map(c => (
-                <button key={c} onClick={() => setColor(c)}
-                  style={{
-                    width: 32, height: 32, borderRadius: '50%', background: c, border: `3px solid ${color === c ? 'white' : 'transparent'}`,
-                    cursor: 'pointer', transition: 'border 0.15s',
-                  }} />
-              ))}
+            <div style={{ marginBottom: '0.75rem' }}>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>DESCRIPTION</label>
+              <input className="input-field" placeholder="Brief description..." value={description} onChange={e => setDescription(e.target.value)} />
             </div>
-          </div>
-
-          {/* Difficulty */}
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>DIFFICULTY</label>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {['Beginner', 'Intermediate', 'Advanced'].map(d => (
-                <button key={d} className={`chip ${difficulty === d ? 'active' : ''}`} onClick={() => setDifficulty(d)}>
-                  {d}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Exercises */}
-          <div>
-            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>
-              EXERCISES ({exercises.length})
-            </label>
-            {exercises.map((ex, idx) => (
-              <div key={idx} style={{
-                background: 'var(--bg-card)', borderRadius: 12, padding: '0.75rem',
-                marginBottom: '0.4rem', border: '1px solid var(--border-light)',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                  <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{ex.name}</span>
-                  <button onClick={() => removeExercise(idx)} className="btn-ghost"
-                    style={{ padding: '0.2rem 0.45rem', fontSize: '0.8rem', color: 'var(--danger)' }}>✕</button>
-                </div>
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
-                  {['sets', 'reps', 'weight'].map(field => (
-                    <div key={field} style={{ flex: 1 }}>
-                      <label style={{ fontSize: '0.6rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px', textAlign: 'center', fontWeight: 600 }}>
-                        {field.toUpperCase()}
-                      </label>
-                      <input
-                        type="number"
-                        value={ex[field]}
-                        onChange={e => updateExercise(idx, field, Number(e.target.value))}
-                        style={{
-                          width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border)',
-                          color: 'var(--text-primary)', borderRadius: 8, padding: '0.3rem',
-                          textAlign: 'center', fontSize: '0.85rem', fontWeight: 600, fontFamily: 'inherit',
-                          outline: 'none',
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
+            <div style={{ marginBottom: '0.75rem' }}>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>ICON</label>
+              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                {icons.map(ic => (
+                  <button key={ic} onClick={() => setIcon(ic)}
+                    style={{ width: 40, height: 40, borderRadius: 10, border: `2px solid ${icon === ic ? 'var(--accent)' : 'var(--border)'}`, background: icon === ic ? 'var(--accent-subtle)' : 'var(--bg-input)', fontSize: '1.3rem', cursor: 'pointer' }}>{ic}</button>
+                ))}
               </div>
-            ))}
-            <button
-              onClick={() => setShowExPicker(true)}
-              style={{
-                width: '100%', padding: '0.75rem', borderRadius: 12,
-                border: '2px dashed var(--border)', background: 'transparent',
-                color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit',
-                fontWeight: 600, fontSize: '0.85rem',
-              }}
-            >⊕ Add Exercise</button>
+            </div>
+            <div style={{ marginBottom: '0.75rem' }}>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>COLOR</label>
+              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                {colors.map(c => (
+                  <button key={c} onClick={() => setColor(c)}
+                    style={{ width: 32, height: 32, borderRadius: '50%', background: c, border: `3px solid ${color === c ? 'white' : 'transparent'}`, cursor: 'pointer', transition: 'border 0.15s' }} />
+                ))}
+              </div>
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem' }}>DIFFICULTY</label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {['Beginner', 'Intermediate', 'Advanced'].map(d => (
+                  <button key={d} className={`chip ${difficulty === d ? 'active' : ''}`} onClick={() => setDifficulty(d)}>{d}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '0.5rem' }}>EXERCISES ({exercises.length})</label>
+              {exercises.map((ex, idx) => (
+                <div key={idx} style={{ background: 'var(--bg-card)', borderRadius: 12, padding: '0.75rem', marginBottom: '0.4rem', border: '1px solid var(--border-light)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{ex.name}</span>
+                    <button onClick={() => setExercises(prev => prev.filter((_, i) => i !== idx))} className="btn-ghost" style={{ padding: '0.2rem 0.45rem', fontSize: '0.8rem', color: 'var(--danger)' }}><IconMap name='focus' size={14} /></button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    {['sets', 'reps', 'weight'].map(field => (
+                      <div key={field} style={{ flex: 1 }}>
+                        <label style={{ fontSize: '0.6rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px', textAlign: 'center', fontWeight: 600 }}>{field.toUpperCase()}</label>
+                        <NumberInput
+                          value={ex[field]}
+                          onChange={val => setExercises(prev => prev.map((item, i) => i === idx ? { ...item, [field]: val } : item))}
+                          min={0}
+                          style={{ width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 8, padding: '0.3rem', textAlign: 'center', fontSize: '0.85rem', fontWeight: 600, fontFamily: 'inherit', outline: 'none' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <button onClick={() => setShowExPicker(true)}
+                style={{ width: '100%', padding: '0.75rem', borderRadius: 12, border: '2px dashed var(--border)', background: 'transparent', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: '0.85rem' }}>
+                ⊕ Add Exercise
+              </button>
+            </div>
+          </div>
+
+          <div style={{ padding: '0.75rem 1.25rem', borderTop: '1px solid var(--border-light)', background: 'var(--bg-secondary)', flexShrink: 0 }}>
+            <button className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '0.75rem', fontSize: '0.95rem' }} onClick={handleSave} disabled={!name.trim() || exercises.length === 0}>
+              💾 Save Workout Plan
+            </button>
           </div>
         </div>
-
-        <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid var(--border-light)' }}>
-          <button
-            className="btn-primary"
-            style={{ width: '100%', justifyContent: 'center', padding: '0.75rem', fontSize: '0.95rem' }}
-            onClick={handleSave}
-            disabled={!name.trim() || exercises.length === 0}
-          >
-            💾 Save Workout Plan
-          </button>
-        </div>
-
-        <AnimatePresence>
-          {showExPicker && (
-            <ExercisePicker
-              onSelect={(name) => { addExercise(name); }}
-              onClose={() => setShowExPicker(false)}
-            />
-          )}
-        </AnimatePresence>
-      </motion.div>
-    </motion.div>
+      </div>
+      {showExPicker && <ExercisePicker onSelect={name => setExercises(prev => [...prev, { name, sets: 3, reps: 10, weight: 0 }])} onClose={() => setShowExPicker(false)} />}
+    </>,
+    document.body
   );
 }
 
-// HISTORY LOG ITEM
+// ─── HISTORY ITEM ─────────────────────────────────────────────────
 function HistoryItem({ log }) {
   const [expanded, setExpanded] = useState(false);
-  const totalVolume = log.exercises.reduce((a, ex) =>
-    a + ex.sets.filter(s => s.completed).reduce((b, s) => b + s.reps * s.weight, 0), 0);
+  const totalVolume = log.exercises.reduce((a, ex) => a + ex.sets.filter(s => s.completed).reduce((b, s) => b + s.reps * s.weight, 0), 0);
   const totalSets = log.exercises.reduce((a, ex) => a + ex.sets.filter(s => s.completed).length, 0);
   const date = new Date(log.finishedAt);
 
   return (
-    <div
-      className="card-no-hover"
-      style={{ marginBottom: '0.5rem', padding: '0.9rem 1rem', cursor: 'pointer' }}
-      onClick={() => setExpanded(e => !e)}
-    >
+    <div className="card-no-hover" style={{ marginBottom: '0.5rem', padding: '0.9rem 1rem', cursor: 'pointer' }} onClick={() => setExpanded(e => !e)}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{log.name}</div>
           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-            {date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-            {' · '}{log.duration}min
+            {date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {log.duration}min
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
@@ -912,35 +648,195 @@ function HistoryItem({ log }) {
           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{totalSets} sets</div>
         </div>
       </div>
-
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            style={{ marginTop: '0.75rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}
-          >
-            {log.exercises.map((ex, i) => {
-              const completedSets = ex.sets.filter(s => s.completed);
-              if (completedSets.length === 0) return null;
-              return (
-                <div key={i} style={{ marginBottom: '0.4rem' }}>
-                  <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent)' }}>{ex.name}</span>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-                    {completedSets.map(s => `${s.reps}×${s.weight}kg`).join(', ')}
-                  </span>
-                </div>
-              );
-            })}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Collapse open={expanded}>
+        <div style={{ marginTop: '0.75rem', borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}>
+          {log.exercises.map((ex, i) => {
+            const completedSets = ex.sets.filter(s => s.completed);
+            if (completedSets.length === 0) return null;
+            return (
+              <div key={i} style={{ marginBottom: '0.4rem' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent)' }}>{ex.name}</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>{completedSets.map(s => `${s.reps}×${s.weight}kg`).join(', ')}</span>
+              </div>
+            );
+          })}
+        </div>
+      </Collapse>
     </div>
   );
 }
 
-// ─────────────────────── MAIN GYM TRACKER ───────────────────────
+// ─── EXERCISE BROWSER ─────────────────────────────────────────────
+function ExerciseBrowser() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeGroup, setActiveGroup] = useState(null);
+  const [activeSub, setActiveSub] = useState(null);
+  const [equip, setEquip] = useState('all');
+  const [diff, setDiff] = useState('all');
+  const [selectedEx, setSelectedEx] = useState(null);
+
+  const all = useMemo(() => Object.entries(EXERCISES), []);
+  const equipOptions = useMemo(() => ['all', ...new Set(all.map(([, v]) => v.equipment))], [all]);
+
+  const { filteredCount, grouped } = useMemo(() => {
+    let count = 0;
+    const limit = 80;
+    const localGrouped = {};
+    const searchLower = searchQuery.toLowerCase();
+    for (let i = 0; i < all.length; i++) {
+        const [name, info] = all[i];
+        if (activeGroup && activeGroup !== 'all' && info.muscle !== activeGroup) continue;
+        if (activeSub && activeSub !== 'all' && info.sub !== activeSub) continue;
+        if (equip !== 'all' && info.equipment !== equip) continue;
+        if (diff !== 'all' && info.difficulty !== diff) continue;
+        if (searchLower && !name.toLowerCase().includes(searchLower)) continue;
+        count++;
+        if (count <= limit) {
+          if (!localGrouped[info.muscle]) localGrouped[info.muscle] = [];
+          localGrouped[info.muscle].push([name, info]);
+        }
+    }
+    return { filteredCount: count, grouped: localGrouped };
+  }, [all, activeGroup, activeSub, equip, diff, searchQuery]);
+
+  return (
+    <div style={{ width: '100%', overflowX: 'hidden' }}>
+      
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
+        {(activeGroup || searchQuery) && (
+          <button onClick={() => { 
+            if (activeSub) { setActiveSub(null); } 
+            else if (searchQuery) { setSearchQuery(''); setActiveSub(null); setActiveGroup(null); }
+            else { setActiveGroup(null); setActiveSub(null); }
+          }} className="btn-ghost" style={{ padding: '0.4rem 0.6rem', fontSize: '1.4rem', color: 'var(--text-muted)' }}>←</button>
+        )}
+        <h2 style={{ fontWeight: 800, fontSize: '1.4rem', letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {activeSub && activeSub !== 'all' ? MUSCLE_GROUPS[activeGroup]?.subGroups?.[activeSub]?.label : activeGroup && activeGroup !== 'all' ? MUSCLE_GROUPS[activeGroup].label : searchQuery ? 'Search Results' : 'All Exercises'}
+        </h2>
+      </div>
+
+      <input className="input-field" placeholder="🔍 Search all exercises..." value={searchQuery} 
+        onChange={e => { setSearchQuery(e.target.value); if(e.target.value) { setActiveGroup('all'); setActiveSub('all'); } }} 
+        style={{ marginBottom: '0.75rem', padding: '0.8rem 1rem', borderRadius: 14 }} 
+      />
+
+      {(activeSub || searchQuery) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: '2px' }}>
+            {equipOptions.slice(0, 10).map(e => (
+              <button key={e} className={`chip ${equip === e ? 'active' : ''}`} onClick={() => setEquip(e)} style={{ whiteSpace: 'nowrap', fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}>
+                {e === 'all' ? 'All Equipment' : e}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: '2px' }}>
+            {['all', 'Beginner', 'Intermediate', 'Advanced'].map(d => (
+              <button key={d} className={`chip ${diff === d ? 'active' : ''}`} onClick={() => setDiff(d)} style={{ whiteSpace: 'nowrap', fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}>
+                {d === 'all' ? 'Any Difficulty' : d}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!activeGroup && !searchQuery ? (
+        // Step 1: Big Grid for Muscle Groups
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', paddingBottom: '2rem' }}>
+          {Object.entries(MUSCLE_GROUPS).map(([key, mg]) => (
+            <button key={key} onClick={() => setActiveGroup(key)}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                padding: '1.75rem 0.5rem', borderRadius: 20, border: '1px solid var(--border-light)',
+                background: `linear-gradient(145deg, var(--bg-card), ${mg.color}15)`,
+                cursor: 'pointer', textAlign: 'center', transition: 'transform 0.15s, box-shadow 0.15s',
+              }}
+            >
+              <span style={{ fontSize: '3.5rem', marginBottom: '0.75rem', filter: `drop-shadow(0 4px 12px ${mg.color}44)` }}><IconMap name={mg.icon} size={48} /></span>
+              <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text-primary)', letterSpacing: '0.02em' }}>{mg.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : activeGroup && !activeSub && !searchQuery ? (
+        // Step 2: Grid for Sub-Muscles
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', paddingBottom: '2rem' }}>
+          <button onClick={() => setActiveSub('all')}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              padding: '1.5rem 0.5rem', borderRadius: 16, border: '1px solid var(--border-light)',
+              background: `linear-gradient(145deg, var(--bg-card), var(--accent-glow))`,
+              cursor: 'pointer', textAlign: 'center',
+            }}
+          >
+            <span style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}><IconMap name='star' size={40} /></span>
+            <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>All {MUSCLE_GROUPS[activeGroup]?.label}</span>
+          </button>
+          {Object.entries(MUSCLE_GROUPS[activeGroup]?.subGroups || {}).map(([key, sg]) => (
+            <button key={key} onClick={() => setActiveSub(key)}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                padding: '1.5rem 0.5rem', borderRadius: 16, border: '1px solid var(--border-light)',
+                background: `linear-gradient(145deg, var(--bg-card), ${MUSCLE_GROUPS[activeGroup].color}12)`,
+                cursor: 'pointer', textAlign: 'center',
+              }}
+            >
+              <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>{sg.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        // Step 3: Exercise List
+        <>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.75rem', fontWeight: 600 }}>
+            {filteredCount} exercises {filteredCount > 80 && '(showing top 80)'}
+          </p>
+          {filteredCount === 0 && (
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}><IconMap name='focus' size={48} /></div>
+              <p style={{ fontWeight: 600 }}>No exercises found</p>
+            </div>
+          )}
+          {Object.entries(grouped).map(([mg, exList]) => (
+            <div key={mg} style={{ marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', padding: '0.35rem 0.5rem', borderRadius: 8, background: `${MUSCLE_GROUPS[mg]?.color || 'var(--accent)'}11` }}>
+                <span style={{ fontSize: '1.2rem' }}>{MUSCLE_GROUPS[mg]?.icon}</span>
+                <span style={{ fontWeight: 700, fontSize: '0.85rem', color: MUSCLE_GROUPS[mg]?.color || 'var(--accent)' }}>{MUSCLE_GROUPS[mg]?.label}</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>({exList.length})</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(240px, 100%), 1fr))', gap: '0.4rem' }}>
+                {exList.map(([name, info]) => (
+                  <div key={name}
+                    onClick={() => setSelectedEx(selectedEx === name ? null : name)}
+                    style={{
+                      padding: '0.85rem', borderRadius: 14,
+                      border: `1px solid ${selectedEx === name ? MUSCLE_GROUPS[mg]?.color || 'var(--accent)' : 'var(--border-light)'}`,
+                      background: selectedEx === name ? `${MUSCLE_GROUPS[mg]?.color || 'var(--accent)'}11` : 'var(--bg-card)',
+                      cursor: 'pointer', transition: 'border-color 0.15s, background 0.15s',
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>{name}</div>
+                    <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500 }}>{info.equipment}</span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>·</span>
+                      <DifficultyBadge level={info.difficulty} />
+                    </div>
+                    <Collapse open={selectedEx === name}>
+                      <div style={{ marginTop: '0.6rem', fontSize: '0.75rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border-light)', paddingTop: '0.5rem' }}>
+                        <strong>Targets:</strong> {MUSCLE_GROUPS[mg]?.subGroups?.[info.sub]?.label || info.sub}
+                        <br /><strong>Type:</strong> {info.type}
+                      </div>
+                    </Collapse>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── MAIN GYM TRACKER ─────────────────────────────────────────────
 export default function GymTracker(props) {
   const {
     gymData, stats, startSession, createPlan, deletePlan,
@@ -949,7 +845,7 @@ export default function GymTracker(props) {
     finishSession, discardSession, updateSessionExercise,
   } = props;
 
-  const [activeView, setActiveView] = useState('home'); // home | templates | exercises | history | plans
+  const [activeView, setActiveView] = useState('stats');
   const [showCreatePlan, setShowCreatePlan] = useState(false);
   const [templateCategory, setTemplateCategory] = useState('all');
 
@@ -959,393 +855,226 @@ export default function GymTracker(props) {
     finishSession, discardSession, updateSessionExercise,
   };
 
-  // If there's an active session, show session view
+  // ── ALL HOOKS MUST BE BEFORE ANY CONDITIONAL RETURN ──────────────
+  const calculateMuscleRanks = useMemo(() => {
+    const xp = {};
+    Object.keys(MUSCLE_GROUPS).forEach(k => xp[k] = 0);
+    (gymData.workoutLogs || []).forEach(log => {
+      (log.exercises || []).forEach(ex => {
+        const m = EXERCISES[ex.name]?.muscle;
+        if (!m || xp[m] === undefined) return;
+        (ex.sets || []).forEach(set => {
+          if (set.completed) {
+            xp[m] += (set.reps || 0) * ((set.weight > 0 ? set.weight : 5));
+          }
+        });
+      });
+    });
+
+    const getRank = (score) => {
+      if (score >= 1000000) return { title: 'Legendary', color: '#ff4500', icon: 'legendary', max: null, min: 1000000 };
+      if (score >= 500000) return { title: 'Master', color: '#c084fc', icon: 'master', max: 1000000, min: 500000 };
+      if (score >= 200000) return { title: 'Diamond', color: '#06b6d4', icon: 'diamond', max: 500000, min: 200000 };
+      if (score >= 75000) return { title: 'Platinum', color: '#14b8a6', icon: 'platinum', max: 200000, min: 75000 };
+      if (score >= 25000) return { title: 'Gold', color: '#eab308', icon: 'gold', max: 75000, min: 25000 };
+      if (score >= 5000) return { title: 'Silver', color: '#9ca3af', icon: 'silver', max: 25000, min: 5000 };
+      return { title: 'Novice', color: '#8c7e75', icon: 'wood', max: 5000, min: 0 };
+    };
+
+    return Object.keys(xp).map(m => ({
+      id: m,
+      label: MUSCLE_GROUPS[m]?.label || m,
+      icon: MUSCLE_GROUPS[m]?.icon || '🏋️',
+      xp: Math.round(xp[m]),
+      rank: getRank(xp[m])
+    })).sort((a, b) => b.xp - a.xp);
+  }, [gymData.workoutLogs]);
+
+  const categories = useMemo(() => ['all', ...new Set(WORKOUT_TEMPLATES.map(t => t.category))], []);
+  const filteredTemplates = useMemo(() => templateCategory === 'all' ? WORKOUT_TEMPLATES : WORKOUT_TEMPLATES.filter(t => t.category === templateCategory), [templateCategory]);
+  const allCustomPlans = gymData.workoutPlans || [];
+
+  // ── NOW safe to conditionally render ─────────────────────────────
   if (gymData.activeSession) {
     return (
-      <div>
+      <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-          <span style={{
-            width: 10, height: 10, borderRadius: '50%', background: 'var(--success)',
-            boxShadow: '0 0 12px var(--success)', display: 'inline-block',
-            animation: 'pulse-glow 1.5s infinite',
-          }} />
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 12px var(--success)', display: 'inline-block', animation: 'pulse-glow 1.5s infinite' }} />
           <h2 style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--success)' }}>Active Session</h2>
         </div>
-        <ActiveSessionView session={gymData.activeSession} gymProps={gymProps} />
+        <ActiveSessionView session={gymData.activeSession} gymProps={gymProps} levelProps={props.levelProps} />
       </div>
     );
   }
 
-  const categories = ['all', ...new Set(WORKOUT_TEMPLATES.map(t => t.category))];
-  const filteredTemplates = templateCategory === 'all'
-    ? WORKOUT_TEMPLATES
-    : WORKOUT_TEMPLATES.filter(t => t.category === templateCategory);
-
-  const allCustomPlans = gymData.workoutPlans;
-
   const NAV = [
-    { id: 'home', icon: '🏠', label: 'Home' },
-    { id: 'templates', icon: '📋', label: 'Templates' },
-    { id: 'exercises', icon: '🔍', label: 'Exercises' },
-    { id: 'history', icon: '📊', label: 'History' },
-    { id: 'plans', icon: '⚡', label: 'My Plans' },
+    { id: 'stats',     icon: 'stats', label: 'Stats' },
+    { id: 'home',      icon: 'home', label: 'Home' },
+    { id: 'templates', icon: 'tasks', label: 'Templates' },
+    { id: 'exercises', icon: 'focus', label: 'Exercises' },
+    { id: 'history',  icon: 'habits', label: 'History' },
+    { id: 'plans',    icon: 'zap', label: 'My Plans' },
   ];
 
+
   return (
-    <div>
-      {/* Page Header */}
+    <div style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
+      {/* Header */}
       <div style={{ marginBottom: '1.25rem' }}>
         <h2 style={{
-          fontWeight: 900, fontSize: '1.6rem', letterSpacing: '-0.03em',
+          fontWeight: 900, fontSize: 'clamp(1.2rem, 5vw, 1.6rem)', letterSpacing: '-0.03em',
           background: 'linear-gradient(135deg, var(--gradient-start), var(--gradient-end))',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-        }}>
-          🏋️ GymOS
-        </h2>
-        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-          Track every rep, every set, every PR
-        </p>
+        }}>GymOS</h2>
+        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>Track every rep, every set, every PR</p>
       </div>
 
       {/* Sub-Nav */}
-      <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', scrollbarWidth: 'none', marginBottom: '1.25rem', paddingBottom: '4px' }}>
+      <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', marginBottom: '1.25rem', paddingBottom: '2px', WebkitOverflowScrolling: 'touch' }}>
         {NAV.map(n => (
-          <motion.button
-            key={n.id}
-            whileTap={{ scale: 0.94 }}
-            onClick={() => setActiveView(n.id)}
+          <button key={n.id} onClick={() => setActiveView(n.id)}
             style={{
               display: 'flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap',
-              padding: '0.45rem 0.9rem', borderRadius: 20, border: '1px solid',
+              padding: '0.45rem 0.75rem', borderRadius: 20, border: '1px solid',
               borderColor: activeView === n.id ? 'var(--accent)' : 'var(--border)',
               background: activeView === n.id ? 'var(--accent-subtle)' : 'var(--bg-card)',
               color: activeView === n.id ? 'var(--accent)' : 'var(--text-secondary)',
-              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-              fontSize: '0.8rem', transition: 'all 0.2s ease',
+              cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: '0.78rem',
+              transition: 'background-color 0.15s, border-color 0.15s, color 0.15s',
+              flexShrink: 0, WebkitTapHighlightColor: 'transparent',
             }}
-          >
-            <span>{n.icon}</span>
-            <span>{n.label}</span>
-          </motion.button>
+          ><span><IconMap name={n.icon} size={16} /></span><span>{n.label}</span></button>
         ))}
       </div>
 
-      <AnimatePresence mode="wait">
-        {/* ── HOME ── */}
-        {activeView === 'home' && (
-          <motion.div key="home" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            {/* Stats Row */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', marginBottom: '1.25rem' }}>
-              <StatCard icon="🏋️" label="Total Workouts" value={stats.totalWorkouts} />
-              <StatCard icon="🔥" label="This Week" value={stats.thisWeek} sub="sessions" />
-              <StatCard icon="📊" label="Total Volume" value={`${(stats.totalVolume / 1000).toFixed(1)}T`} sub="tonnes lifted" />
-              <StatCard icon="✅" label="Total Sets" value={stats.totalSets.toLocaleString()} />
-            </div>
-
-            {/* Quick Start */}
-            <div className="card-no-hover" style={{ marginBottom: '1rem' }}>
-              <h3 style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.85rem', color: 'var(--text-muted)' }}>QUICK START</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                {WORKOUT_TEMPLATES.slice(0, 4).map(t => (
-                  <motion.button
-                    key={t.id}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => startSession(t)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '0.75rem',
-                      padding: '0.65rem 0.85rem', borderRadius: 12,
-                      border: '1px solid var(--border-light)', background: 'var(--bg-input)',
-                      cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <span style={{ fontSize: '1.4rem' }}>{t.icon}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{t.name}</div>
-                      <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{t.estimatedTime}min · {t.exercises.length} exercises</div>
-                    </div>
-                    <DifficultyBadge level={t.difficulty} />
-                    <span style={{ color: 'var(--accent)', fontSize: '1rem' }}>▶</span>
-                  </motion.button>
-                ))}
-              </div>
-              <button
-                className="btn-ghost"
-                style={{ width: '100%', marginTop: '0.5rem', justifyContent: 'center' }}
-                onClick={() => setActiveView('templates')}
-              >View all templates →</button>
-            </div>
-
-            {/* Recent PRs */}
-            {Object.keys(stats.prs).length > 0 && (
-              <div className="card-no-hover" style={{ marginBottom: '1rem' }}>
-                <h3 style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.75rem', color: 'var(--text-muted)' }}>🏆 PERSONAL RECORDS</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                  {Object.entries(stats.prs).slice(0, 6).map(([ex, weight]) => (
-                    <div key={ex} style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '0.45rem 0.75rem', borderRadius: 8, background: 'var(--bg-input)',
-                    }}>
-                      <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{ex}</span>
-                      <span style={{ fontWeight: 800, color: 'var(--accent)', fontSize: '0.88rem' }}>{weight}kg</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Recent History */}
-            {gymData.workoutLogs.length > 0 && (
-              <div>
-                <h3 style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.75rem', color: 'var(--text-muted)' }}>RECENT SESSIONS</h3>
-                {gymData.workoutLogs.slice(0, 3).map((log, i) => <HistoryItem key={i} log={log} />)}
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        {/* ── TEMPLATES ── */}
-        {activeView === 'templates' && (
-          <motion.div key="templates" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            {/* Category filter */}
-            <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', scrollbarWidth: 'none', marginBottom: '1rem', paddingBottom: '4px' }}>
-              {categories.map(c => (
-                <button
-                  key={c}
-                  className={`chip ${templateCategory === c ? 'active' : ''}`}
-                  onClick={() => setTemplateCategory(c)}
-                  style={{ whiteSpace: 'nowrap' }}
-                >
-                  {c === 'all' ? 'All' : c}
-                </button>
-              ))}
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: '0.75rem' }}>
-              {filteredTemplates.map(t => (
-                <TemplateCard key={t.id} template={t} color={t.color} onStart={startSession} />
-              ))}
-              {allCustomPlans.filter(p => templateCategory === 'all' || p.category === templateCategory).map(plan => (
-                <TemplateCard
-                  key={plan.id}
-                  template={plan}
-                  color={plan.color || 'var(--accent)'}
-                  onStart={startSession}
-                />
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {/* ── EXERCISE BROWSER ── */}
-        {activeView === 'exercises' && (
-          <motion.div key="exercises" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <ExerciseBrowser />
-          </motion.div>
-        )}
-
-        {/* ── HISTORY ── */}
-        {activeView === 'history' && (
-          <motion.div key="history" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            {gymData.workoutLogs.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>📊</div>
-                <h3 style={{ fontWeight: 700, marginBottom: '0.4rem' }}>No workouts yet</h3>
-                <p style={{ fontSize: '0.82rem' }}>Start your first session to see your history</p>
-              </div>
-            ) : (
-              <div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
-                  <StatCard icon="🏋️" label="Workouts" value={stats.totalWorkouts} />
-                  <StatCard icon="📊" label="Volume" value={`${(stats.totalVolume / 1000).toFixed(1)}T`} />
-                  <StatCard icon="⏱" label="This Week" value={stats.thisWeek} />
-                </div>
-                {gymData.workoutLogs.map((log, i) => <HistoryItem key={i} log={log} />)}
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        {/* ── MY PLANS ── */}
-        {activeView === 'plans' && (
-          <motion.div key="plans" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              className="btn-primary"
-              style={{ width: '100%', justifyContent: 'center', marginBottom: '1rem', padding: '0.75rem' }}
-              onClick={() => setShowCreatePlan(true)}
-            >
-              ⊕ Create New Workout Plan
-            </motion.button>
-
-            {allCustomPlans.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>⚡</div>
-                <h3 style={{ fontWeight: 700, marginBottom: '0.35rem' }}>No custom plans yet</h3>
-                <p style={{ fontSize: '0.82rem' }}>Create your first personalized workout plan</p>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: '0.75rem' }}>
-                {allCustomPlans.map(plan => (
-                  <div key={plan.id} style={{ position: 'relative' }}>
-                    <TemplateCard template={plan} color={plan.color || 'var(--accent)'} onStart={startSession} />
-                    <button
-                      onClick={() => { if (confirm('Delete this plan?')) deletePlan(plan.id); }}
-                      style={{
-                        position: 'absolute', top: '0.75rem', right: '0.75rem',
-                        background: 'var(--danger-bg)', color: 'var(--danger)',
-                        border: 'none', borderRadius: 8, padding: '0.25rem 0.5rem',
-                        cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, fontFamily: 'inherit',
-                      }}
-                    >Delete</button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Create Plan Modal */}
-      <AnimatePresence>
-        {showCreatePlan && (
-          <CreatePlanModal onSave={createPlan} onClose={() => setShowCreatePlan(false)} />
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-// ─────────────────────── EXERCISE BROWSER (full) ───────────────────────
-function ExerciseBrowser() {
-  const [search, setSearch] = useState('');
-  const [muscle, setMuscle] = useState('all');
-  const [sub, setSub] = useState('all');
-  const [equip, setEquip] = useState('all');
-  const [diff, setDiff] = useState('all');
-  const [selectedEx, setSelectedEx] = useState(null);
-
-  const all = Object.entries(EXERCISES);
-  const equipOptions = ['all', ...new Set(all.map(([, v]) => v.equipment))];
-  const subGroups = muscle !== 'all' ? Object.entries(MUSCLE_GROUPS[muscle]?.subGroups || {}) : [];
-
-  const filtered = all.filter(([name, info]) => {
-    return (muscle === 'all' || info.muscle === muscle)
-      && (sub === 'all' || info.sub === sub)
-      && (equip === 'all' || info.equipment === equip)
-      && (diff === 'all' || info.difficulty === diff)
-      && name.toLowerCase().includes(search.toLowerCase());
-  });
-
-  // Group by muscle
-  const grouped = {};
-  filtered.forEach(([name, info]) => {
-    if (!grouped[info.muscle]) grouped[info.muscle] = [];
-    grouped[info.muscle].push([name, info]);
-  });
-
-  return (
-    <div>
-      <input
-        className="input-field"
-        placeholder="🔍 Search all exercises..."
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        style={{ marginBottom: '0.75rem' }}
-      />
-
-      {/* Muscle filter */}
-      <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', scrollbarWidth: 'none', marginBottom: '0.5rem', paddingBottom: '4px' }}>
-        <button className={`chip ${muscle === 'all' ? 'active' : ''}`} onClick={() => { setMuscle('all'); setSub('all'); }}>All</button>
-        {Object.entries(MUSCLE_GROUPS).map(([key, mg]) => (
-          <button
-            key={key}
-            className={`chip ${muscle === key ? 'active' : ''}`}
-            onClick={() => { setMuscle(key); setSub('all'); }}
-            style={{ whiteSpace: 'nowrap' }}
-          >{mg.icon} {mg.label}</button>
-        ))}
-      </div>
-
-      {/* Sub group */}
-      {subGroups.length > 0 && (
-        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', scrollbarWidth: 'none', marginBottom: '0.5rem', paddingBottom: '4px' }}>
-          <button className={`chip ${sub === 'all' ? 'active' : ''}`} onClick={() => setSub('all')}>All</button>
-          {subGroups.map(([key, sg]) => (
-            <button key={key} className={`chip ${sub === key ? 'active' : ''}`} onClick={() => setSub(key)}
-              style={{ whiteSpace: 'nowrap', fontSize: '0.72rem' }}>{sg.label}</button>
-          ))}
+      {/* HOME */}
+      <div style={{ display: activeView === 'home' ? 'block' : 'none' }}>
+        <button className="btn-primary" style={{
+          width: '100%', justifyContent: 'center', marginBottom: '1.25rem',
+          padding: '0.9rem 1rem', fontSize: '0.95rem', fontWeight: 800,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+        }}
+          onClick={() => startSession({ id: 'custom_empty', name: 'Custom Session', category: 'custom', icon: 'zap', difficulty: 'Any', estimatedTime: 0, exercises: [] })}>
+          ⊕ START EMPTY SESSION
+        </button>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '0.4rem', marginBottom: '1.5rem' }}>
+          <StatCard icon="gym" label="Workouts" value={stats.totalWorkouts} />
+          <StatCard icon="core" label="This Week" value={stats.thisWeek} sub="sessions" />
+          <StatCard icon="stats" label="Volume" value={`${((stats.totalVolume || 0) / 1000).toFixed(1)}T`} sub="tonnes" />
+          <StatCard icon="tasks" label="Sets" value={(stats.totalSets || 0).toLocaleString()} />
         </div>
-      )}
-
-      {/* Equipment + Difficulty */}
-      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-        {equipOptions.slice(0, 8).map(e => (
-          <button key={e} className={`chip ${equip === e ? 'active' : ''}`} onClick={() => setEquip(e)}
-            style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}
-          >{e === 'all' ? 'All Equipment' : e}</button>
-        ))}
-        {['all', 'Beginner', 'Intermediate', 'Advanced'].map(d => (
-          <button key={d} className={`chip ${diff === d ? 'active' : ''}`} onClick={() => setDiff(d)}
-            style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem' }}
-          >{d === 'all' ? 'Any Difficulty' : d}</button>
-        ))}
-      </div>
-
-      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.75rem', fontWeight: 600 }}>
-        {filtered.length} of {all.length} exercises
-      </p>
-
-      {/* Results grouped by muscle */}
-      {Object.entries(grouped).map(([mg, exList]) => (
-        <div key={mg} style={{ marginBottom: '1rem' }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem',
-            padding: '0.35rem 0.5rem', borderRadius: 8, background: `${MUSCLE_GROUPS[mg]?.color || 'var(--accent)'}11`,
-          }}>
-            <span style={{ fontSize: '1rem' }}>{MUSCLE_GROUPS[mg]?.icon}</span>
-            <span style={{ fontWeight: 700, fontSize: '0.8rem', color: MUSCLE_GROUPS[mg]?.color || 'var(--accent)' }}>
-              {MUSCLE_GROUPS[mg]?.label}
-            </span>
-            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>({exList.length})</span>
+        <div className="card-no-hover" style={{ marginBottom: '1.5rem', padding: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+            <h3 style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>QUICK START</h3>
+            <button className="btn-ghost" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }} onClick={() => setActiveView('templates')}>View All →</button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(240px, 100%), 1fr))', gap: '0.4rem' }}>
-            {exList.map(([name, info]) => (
-              <motion.div
-                key={name}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => setSelectedEx(selectedEx === name ? null : name)}
-                style={{
-                  padding: '0.65rem 0.85rem', borderRadius: 10,
-                  border: `1px solid ${selectedEx === name ? MUSCLE_GROUPS[mg]?.color || 'var(--accent)' : 'var(--border-light)'}`,
-                  background: selectedEx === name ? `${MUSCLE_GROUPS[mg]?.color || 'var(--accent)'}11` : 'var(--bg-card)',
-                  cursor: 'pointer',
-                }}
-              >
-                <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>{name}</div>
-                <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.3rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{info.equipment}</span>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>·</span>
-                  <DifficultyBadge level={info.difficulty} />
+          <div style={{ display: 'flex', gap: '0.6rem', overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', paddingBottom: '0.5rem' }}>
+            {WORKOUT_TEMPLATES.slice(0, 5).map(t => (
+              <button key={t.id} onClick={() => startSession(t)}
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flexShrink: 0, width: 140, padding: '0.85rem', borderRadius: 16, border: '1px solid var(--border-light)', background: 'var(--bg-input)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', transition: 'background 0.15s' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+                  <span style={{ fontSize: '1.4rem' }}><IconMap name={t.icon} size={24} /></span>
+                  <DifficultyBadge level={t.difficulty} />
                 </div>
-                <AnimatePresence>
-                  {selectedEx === name && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      style={{ marginTop: '0.5rem', fontSize: '0.72rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border-light)', paddingTop: '0.4rem' }}
-                    >
-                      <strong>Targets:</strong> {MUSCLE_GROUPS[mg]?.subGroups[info.sub]?.label || info.sub}
-                      <br /><strong>Type:</strong> {info.type}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
+                <div style={{ marginTop: '0.5rem' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.85rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.2, height: '2.4em' }}>{t.name}</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.3rem', fontWeight: 600 }}>{t.estimatedTime}m · {t.exercises.length} ex</div>
+                </div>
+              </button>
             ))}
           </div>
         </div>
-      ))}
+        {Object.keys(stats.prs || {}).length > 0 && (
+          <div className="card-no-hover" style={{ marginBottom: '1.5rem', padding: '1rem' }}>
+            <h3 style={{ fontWeight: 800, fontSize: '0.85rem', marginBottom: '0.85rem', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>Personal Records</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '0.4rem' }}>
+              {Object.entries(stats.prs).slice(0, 6).map(([ex, weight]) => (
+                <div key={ex} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', padding: '0.6rem 0.75rem', borderRadius: 12, background: 'var(--bg-input)', border: '1px solid var(--border-light)', minWidth: 0 }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ex}</div>
+                  <div style={{ fontWeight: 800, color: 'var(--accent)', fontSize: '1.1rem' }}>{weight}kg</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {(gymData.workoutLogs || []).length > 0 && (
+          <div className="card-no-hover" style={{ padding: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+              <h3 style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>RECENT SESSIONS</h3>
+              <button className="btn-ghost" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }} onClick={() => setActiveView('history')}>View All →</button>
+            </div>
+            {(gymData.workoutLogs || []).slice(0, 3).map((log, i) => <HistoryItem key={i} log={log} />)}
+          </div>
+        )}
+      </div>
+
+      {/* TEMPLATES */}
+      <div style={{ display: activeView === 'templates' ? 'block' : 'none' }}>
+        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', scrollbarWidth: 'none', marginBottom: '1rem', paddingBottom: '4px' }}>
+          {categories.map(c => <button key={c} className={`chip ${templateCategory === c ? 'active' : ''}`} onClick={() => setTemplateCategory(c)} style={{ whiteSpace: 'nowrap' }}>{c === 'all' ? 'All' : c}</button>)}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem' }}>
+          {filteredTemplates.map(t => <TemplateCard key={t.id} template={t} color={t.color} onStart={startSession} />)}
+          {allCustomPlans.filter(p => templateCategory === 'all' || p.category === templateCategory).map(plan => <TemplateCard key={plan.id} template={plan} color={plan.color || 'var(--accent)'} onStart={startSession} />)}
+        </div>
+      </div>
+
+      {/* EXERCISES */}
+      <div style={{ display: activeView === 'exercises' ? 'block' : 'none' }}>
+        <ExerciseBrowser />
+      </div>
+
+      {/* HISTORY */}
+      <div style={{ display: activeView === 'history' ? 'block' : 'none' }}>
+        {(gymData.workoutLogs || []).length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>📊</div>
+            <h3 style={{ fontWeight: 700, marginBottom: '0.4rem' }}>No workouts yet</h3>
+            <p style={{ fontSize: '0.82rem' }}>Start your first session to see your history</p>
+          </div>
+        ) : (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.4rem', marginBottom: '1rem' }}>
+              <StatCard icon="gym" label="Workouts" value={stats.totalWorkouts} />
+              <StatCard icon="stats" label="Volume" value={`${((stats.totalVolume || 0) / 1000).toFixed(1)}T`} />
+              <StatCard icon="⏱" label="This Week" value={stats.thisWeek} />
+            </div>
+            {(gymData.workoutLogs || []).map((log, i) => <HistoryItem key={i} log={log} />)}
+          </div>
+        )}
+      </div>
+
+      {/* STATS (MUSCLE BODY MAP) */}
+      <div style={{ display: activeView === 'stats' ? 'block' : 'none' }}>
+        <BodyMap muscleRanks={calculateMuscleRanks} />
+      </div>
+
+      {/* MY PLANS */}
+      <div style={{ display: activeView === 'plans' ? 'block' : 'none' }}>
+        <button className="btn-primary" style={{ width: '100%', justifyContent: 'center', marginBottom: '1rem', padding: '0.75rem' }} onClick={() => setShowCreatePlan(true)}>
+          ⊕ Create New Workout Plan
+        </button>
+        {allCustomPlans.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>⚡</div>
+            <h3 style={{ fontWeight: 700, marginBottom: '0.35rem' }}>No custom plans yet</h3>
+            <p style={{ fontSize: '0.82rem' }}>Create your first personalized workout plan</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem' }}>
+            {allCustomPlans.map(plan => (
+              <div key={plan.id} style={{ position: 'relative' }}>
+                <TemplateCard template={plan} color={plan.color || 'var(--accent)'} onStart={startSession} />
+                <button onClick={() => { if (confirm('Delete this plan?')) deletePlan(plan.id); }}
+                  style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', background: 'var(--danger-bg)', color: 'var(--danger)', border: 'none', borderRadius: 8, padding: '0.25rem 0.5rem', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, fontFamily: 'inherit' }}>Delete</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {showCreatePlan && <CreatePlanModal onSave={createPlan} onClose={() => setShowCreatePlan(false)} />}
     </div>
   );
 }
+

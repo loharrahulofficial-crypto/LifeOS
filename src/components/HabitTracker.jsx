@@ -1,18 +1,21 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { get52WeekGrid, getToday, formatDisplayDate, getMonthDates, getDayName, getWeekDates } from '../utils/dateUtils';
+import { playSuccessChime } from '../utils/audio';
+import { IconMap } from '../utils/IconMap';
 
-const EMOJI_OPTIONS = ['✅', '💪', '📚', '🧘', '🏃', '💧', '🎯', '🌅', '💤', '🎨', '🎵', '✍️', '🧠', '🥦', '💊', '🚶', '📖', '🧹', '💰', '🙏'];
+const ICON_OPTIONS = ['check', 'arms', 'book', 'walk', 'water', 'target', 'sun', 'moonstar', 'art', 'music', 'write', 'brain', 'apple', 'pill', 'food', 'money', 'star', 'focus', 'home', 'gym'];
 const COLOR_OPTIONS = ['#f59e0b', '#06b6d4', '#10b981', '#ec4899', '#8b5cf6', '#ef4444', '#3b82f6', '#f97316', '#14b8a6', '#a855f7'];
 
-export default function HabitTracker({ habits, completions, addHabit, removeHabit, toggleCompletion, isCompleted, getStreak, getLongestStreak, getHeatmapData, getAllHeatmapData, getDayCompletionCount }) {
+export default function HabitTracker({ habits, completions, addHabit, removeHabit, toggleCompletion, isCompleted, getStreak, getLongestStreak, getHeatmapData, getAllHeatmapData, getDayCompletionCount, levelProps }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newEmoji, setNewEmoji] = useState('✅');
+  const [newEmoji, setNewEmoji] = useState('check');
   const [newColor, setNewColor] = useState('#f59e0b');
   const [view, setView] = useState('daily');
   const [selectedDate, setSelectedDate] = useState(getToday());
   const [selectedHabitHeatmap, setSelectedHabitHeatmap] = useState(null);
+
   const [hoverCell, setHoverCell] = useState(null);
   const [calMonth, setCalMonth] = useState(new Date().getMonth());
   const [calYear, setCalYear] = useState(new Date().getFullYear());
@@ -23,7 +26,7 @@ export default function HabitTracker({ habits, completions, addHabit, removeHabi
     if (!newName.trim()) return;
     addHabit(newName.trim(), newEmoji, newColor);
     setNewName('');
-    setNewEmoji('✅');
+    setNewEmoji('check');
     setNewColor('#f59e0b');
     setShowAddForm(false);
   };
@@ -54,13 +57,25 @@ export default function HabitTracker({ habits, completions, addHabit, removeHabi
 
   const views = ['daily', 'weekly', 'monthly', 'yearly'];
 
+  const handleToggle = (id, date) => {
+    const wasCompleted = isCompleted(id, date);
+    toggleCompletion(id, date);
+    if (!wasCompleted) {
+      playSuccessChime();
+      if (levelProps) {
+        levelProps.addXP(25);
+        levelProps.updateStat('agi', 1);
+      }
+    }
+  };
+
   return (
-    <div>
+    <div style={{ width: '100%', overflowX: 'hidden', boxSizing: 'border-box' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
-            📋 Habits
+          <h2 style={{ fontSize: 'clamp(1.2rem, 5vw, 1.5rem)', fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <IconMap name="habits" size={24} /> Habits
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
             {formatDisplayDate(selectedDate)}
@@ -111,7 +126,7 @@ export default function HabitTracker({ habits, completions, addHabit, removeHabi
             <div style={{ marginBottom: '0.75rem' }}>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.4rem', fontWeight: 500 }}>Emoji</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                {EMOJI_OPTIONS.map(e => (
+                {ICON_OPTIONS.map(e => (
                   <motion.button
                     key={e}
                     onClick={() => setNewEmoji(e)}
@@ -119,10 +134,10 @@ export default function HabitTracker({ habits, completions, addHabit, removeHabi
                     style={{
                       width: 36, height: 36, borderRadius: 10, border: newEmoji === e ? '2px solid var(--accent)' : '2px solid var(--border)',
                       background: newEmoji === e ? 'var(--accent-subtle)' : 'var(--bg-input)', cursor: 'pointer', fontSize: '1.1rem',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', color: newEmoji === e ? 'var(--accent)' : 'var(--text-secondary)'
                     }}
                   >
-                    {e}
+                    <IconMap name={e} size={18} />
                   </motion.button>
                 ))}
               </div>
@@ -154,7 +169,9 @@ export default function HabitTracker({ habits, completions, addHabit, removeHabi
       {/* Empty State */}
       {habits.length === 0 && (
         <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
-          <p style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🎯</p>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem', color: 'var(--text-muted)' }}>
+            <IconMap name="target" size={48} />
+          </div>
           <p style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>No habits yet</p>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Create your first habit to start tracking!</p>
         </div>
@@ -192,7 +209,7 @@ export default function HabitTracker({ habits, completions, addHabit, removeHabi
                 <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> / {habits.length}</span>
               </p>
             </div>
-            <div style={{ width: 52, height: 52, borderRadius: '50%', background: `conic-gradient(var(--accent) ${(habits.filter(h => isCompleted(h.id, selectedDate)).length / habits.length) * 360}deg, var(--bg-input) 0deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', background: `conic-gradient(var(--accent) ${(habits.filter(h => isCompleted(h.id, selectedDate)).length / habits.length) * 360}deg, var(--bg-input) 0deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700 }}>
                 {Math.round((habits.filter(h => isCompleted(h.id, selectedDate)).length / habits.length) * 100)}%
               </div>
@@ -200,58 +217,74 @@ export default function HabitTracker({ habits, completions, addHabit, removeHabi
           </div>
 
           {/* Habit List */}
-          {habits.map((habit) => {
-            const completed = isCompleted(habit.id, selectedDate);
-            const streak = getStreak(habit.id);
-            return (
-              <div
-                key={habit.id}
-                className="card"
-                style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}
-              >
-                <motion.div
-                  className={`custom-check ${completed ? 'checked' : ''}`}
-                  onClick={() => toggleCompletion(habit.id, selectedDate)}
-                  whileTap={{ scale: 0.85 }}
-                  style={{ borderColor: completed ? habit.color : undefined, background: completed ? habit.color : undefined }}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+            {habits.map((habit) => {
+              const completed = isCompleted(habit.id, selectedDate);
+              const streak = getStreak(habit.id);
+              return (
+                <div
+                  key={habit.id}
+                  className="card"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', width: '100%' }}
                 >
-                  <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                </motion.div>
-                <span style={{ fontSize: '1.3rem' }}>{habit.emoji}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{
-                    fontWeight: 600, fontSize: '0.95rem',
-                    textDecoration: completed ? 'line-through' : 'none',
-                    color: completed ? 'var(--text-muted)' : 'var(--text-primary)',
-                    transition: 'all 0.2s',
-                  }}>
-                    {habit.name}
-                  </p>
-                </div>
-                {streak > 0 && (
-                  <div className="badge" style={{ background: `${habit.color}18`, color: habit.color }}>
-                    🔥 {streak}
+                  <motion.div
+                    onClick={() => handleToggle(habit.id, selectedDate)}
+                    whileTap={{ scale: 0.8 }}
+                    animate={{ scale: completed ? [1, 1.25, 1] : 1 }}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
+                    style={{
+                      width: 26, height: 26, borderRadius: '50%',
+                      border: `2px solid ${completed ? habit.color : 'var(--border)'}`,
+                      background: completed ? habit.color : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', cursor: 'pointer', flexShrink: 0,
+                      boxShadow: completed ? `0 0 12px ${habit.color}50` : 'none',
+                    }}
+                  >
+                    {completed && (
+                      <motion.svg initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} viewBox="0 0 24 24" style={{ width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 3.5, strokeLinecap: 'round', strokeLinejoin: 'round' }}>
+                        <polyline points="20 6 9 17 4 12" />
+                      </motion.svg>
+                    )}
+                  </motion.div>
+                  <div style={{ width: 32, display: 'flex', justifyContent: 'center', flexShrink: 0, color: 'var(--text-secondary)' }}>
+                    <IconMap name={habit.emoji || 'check'} size={24} />
                   </div>
-                )}
-                <motion.button
-                  onClick={() => removeHabit(habit.id)}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem' }}
-                  title="Delete habit"
-                >
-                  🗑️
-                </motion.button>
-              </div>
-            );
-          })}
+                  <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                    <p style={{
+                      fontWeight: 600, fontSize: '0.9rem',
+                      textDecoration: completed ? 'line-through' : 'none',
+                      color: completed ? 'var(--text-muted)' : 'var(--text-primary)',
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                      {habit.name}
+                    </p>
+                  </div>
+                  {streak > 0 && (
+                    <div className="badge" style={{ background: `${habit.color}18`, color: habit.color, flexShrink: 0 }}>
+                      🔥 {streak}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => removeHabit(habit.id)}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1rem', padding: '0.25rem', flexShrink: 0, WebkitTapHighlightColor: 'transparent' }}
+                    title="Delete habit"
+                  >
+                    <IconMap name="focus" size={16} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
+
+
       {/* WEEKLY VIEW */}
       {view === 'weekly' && habits.length > 0 && (
-        <div className="card-no-hover" style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+        <div className="card-no-hover" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: 380, borderCollapse: 'collapse', fontSize: '0.8rem' }}>
             <thead>
               <tr>
                 <th style={{ textAlign: 'left', padding: '0.5rem', color: 'var(--text-muted)', fontWeight: 500 }}>Habit</th>
@@ -266,15 +299,20 @@ export default function HabitTracker({ habits, completions, addHabit, removeHabi
               {habits.map(habit => (
                 <tr key={habit.id}>
                   <td style={{ padding: '0.5rem', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                    {habit.emoji} {habit.name}
+                    <span style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: '0.4rem', color: 'var(--text-secondary)' }}>
+                      <IconMap name={habit.emoji || 'check'} size={14} />
+                    </span>
+                    <span style={{ verticalAlign: 'middle' }}>{habit.name}</span>
                   </td>
                   {weekDates.map(d => {
                     const done = isCompleted(habit.id, d);
                     return (
                       <td key={d} style={{ textAlign: 'center', padding: '0.35rem' }}>
                         <motion.div
-                          onClick={() => d <= today && toggleCompletion(habit.id, d)}
+                          onClick={() => d <= today && handleToggle(habit.id, d)}
                           whileTap={{ scale: 0.8 }}
+                          animate={done ? { scale: [1, 1.15, 1] } : {}}
+                          transition={{ duration: 0.3 }}
                           style={{
                             width: 28, height: 28, borderRadius: 8, margin: '0 auto',
                             background: done ? habit.color : 'var(--bg-input)',
@@ -354,19 +392,20 @@ export default function HabitTracker({ habits, completions, addHabit, removeHabi
               All Habits
             </button>
             {habits.map(h => (
-              <button
-                key={h.id}
-                className={`chip ${selectedHabitHeatmap === h.id ? 'active' : ''}`}
-                onClick={() => setSelectedHabitHeatmap(h.id)}
-              >
-                {h.emoji} {h.name}
-              </button>
+                <button
+                  key={h.id}
+                  className={`chip ${selectedHabitHeatmap === h.id ? 'active' : ''}`}
+                  onClick={() => setSelectedHabitHeatmap(h.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <IconMap name={h.emoji || 'check'} size={14} /> {h.name}
+                </button>
             ))}
           </div>
 
-          <div className="card-no-hover" style={{ overflowX: 'auto', padding: '1.25rem', WebkitOverflowScrolling: 'touch' }}>
-            <div style={{ position: 'relative', minWidth: 53 * 14 + 30 }}>
-              <svg width={53 * 14 + 30} height={7 * 14 + 24} style={{ display: 'block' }}>
+          <div className="card-no-hover" style={{ overflowX: 'auto', padding: '1.25rem', WebkitOverflowScrolling: 'touch', maxWidth: '100%', boxSizing: 'border-box' }}>
+            <div style={{ position: 'relative', minWidth: 53 * 14 + 30, overflow: 'hidden' }}>
+              <svg width={53 * 14 + 30} height={7 * 14 + 24} style={{ display: 'block', overflow: 'hidden' }}>
                 {/* Day labels */}
                 {['', 'Mon', '', 'Wed', '', 'Fri', ''].map((label, i) => (
                   <text key={i} x={0} y={i * 14 + 24} fontSize="9" fill="var(--text-muted)" fontFamily="DM Sans" dominantBaseline="middle">

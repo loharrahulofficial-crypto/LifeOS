@@ -25,6 +25,9 @@ export default defineConfig({
           if (id.includes('src/data/gymExercises')) {
             return 'gym-data';
           }
+          if (id.includes('src/data/foodDatabase')) {
+            return 'food-db';
+          }
         },
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',

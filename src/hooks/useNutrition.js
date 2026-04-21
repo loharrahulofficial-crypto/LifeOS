@@ -9,6 +9,7 @@ const DEFAULT_GOALS = {
   fat: 65,
   fiber: 30,
   water: 8,
+  weight: 2000,
 };
 
 export function useNutrition() {
@@ -18,7 +19,7 @@ export function useNutrition() {
   const addEntry = useCallback((date, item) => {
     const d = date || getToday();
     setEntries(prev => {
-      const dayEntries = prev[d] || { items: [], totals: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, water: 0 } };
+      const dayEntries = prev[d] || { items: [], totals: { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, water: 0, weight: 0 } };
       const newItems = [...dayEntries.items, item];
       const newTotals = {
         calories: dayEntries.totals.calories + (item.calories || 0),
@@ -27,6 +28,7 @@ export function useNutrition() {
         fat: dayEntries.totals.fat + (item.fat || 0),
         fiber: dayEntries.totals.fiber + (item.fiber || 0),
         water: dayEntries.totals.water + (item.water || 0),
+        weight: (dayEntries.totals.weight || 0) + (item.weight || 0),
       };
       return {
         ...prev,
@@ -43,13 +45,41 @@ export function useNutrition() {
       const removedItem = dayEntries.items[index];
       const newItems = dayEntries.items.filter((_, i) => i !== index);
       const newTotals = {
-        calories: dayEntries.totals.calories - (removedItem.calories || 0),
-        protein: dayEntries.totals.protein - (removedItem.protein || 0),
-        carbs: dayEntries.totals.carbs - (removedItem.carbs || 0),
-        fat: dayEntries.totals.fat - (removedItem.fat || 0),
-        fiber: dayEntries.totals.fiber - (removedItem.fiber || 0),
-        water: dayEntries.totals.water - (removedItem.water || 0),
+        calories: Math.max(0, dayEntries.totals.calories - (removedItem.calories || 0)),
+        protein: Math.max(0, dayEntries.totals.protein - (removedItem.protein || 0)),
+        carbs: Math.max(0, dayEntries.totals.carbs - (removedItem.carbs || 0)),
+        fat: Math.max(0, dayEntries.totals.fat - (removedItem.fat || 0)),
+        fiber: Math.max(0, dayEntries.totals.fiber - (removedItem.fiber || 0)),
+        water: Math.max(0, dayEntries.totals.water - (removedItem.water || 0)),
+        weight: Math.max(0, (dayEntries.totals.weight || 0) - (removedItem.weight || 0)),
       };
+      return {
+        ...prev,
+        [d]: { items: newItems, totals: newTotals },
+      };
+    });
+  }, [setEntries]);
+
+  const updateEntry = useCallback((date, index, updatedItem) => {
+    const d = date || getToday();
+    setEntries(prev => {
+      const dayEntries = prev[d];
+      if (!dayEntries) return prev;
+      
+      const oldItem = dayEntries.items[index];
+      const newItems = [...dayEntries.items];
+      newItems[index] = updatedItem;
+
+      const newTotals = {
+        calories: Math.max(0, dayEntries.totals.calories - (oldItem.calories || 0) + (updatedItem.calories || 0)),
+        protein: Math.max(0, dayEntries.totals.protein - (oldItem.protein || 0) + (updatedItem.protein || 0)),
+        carbs: Math.max(0, dayEntries.totals.carbs - (oldItem.carbs || 0) + (updatedItem.carbs || 0)),
+        fat: Math.max(0, dayEntries.totals.fat - (oldItem.fat || 0) + (updatedItem.fat || 0)),
+        fiber: Math.max(0, dayEntries.totals.fiber - (oldItem.fiber || 0) + (updatedItem.fiber || 0)),
+        water: Math.max(0, dayEntries.totals.water - (oldItem.water || 0) + (updatedItem.water || 0)),
+        weight: Math.max(0, (dayEntries.totals.weight || 0) - (oldItem.weight || 0) + (updatedItem.weight || 0)),
+      };
+      
       return {
         ...prev,
         [d]: { items: newItems, totals: newTotals },
@@ -60,7 +90,7 @@ export function useNutrition() {
   const getTotals = useCallback((date) => {
     const d = date || getToday();
     const dayEntries = entries[d];
-    return dayEntries ? dayEntries.totals : { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, water: 0 };
+    return dayEntries ? dayEntries.totals : { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, water: 0, weight: 0 };
   }, [entries]);
 
   const getItems = useCallback((date) => {
@@ -86,6 +116,7 @@ export function useNutrition() {
     entries,
     addEntry,
     removeEntry,
+    updateEntry,
     getTotals,
     getItems,
     getWeeklySummary,
@@ -93,17 +124,5 @@ export function useNutrition() {
   };
 }
 
-export const QUICK_ADD_ITEMS = [
-  { name: '🥚 Egg', calories: 70, protein: 6, carbs: 1, fat: 5, fiber: 0, water: 0 },
-  { name: '🍌 Banana', calories: 105, protein: 1, carbs: 27, fat: 0, fiber: 3, water: 0 },
-  { name: '🍗 Chicken Breast', calories: 165, protein: 31, carbs: 0, fat: 4, fiber: 0, water: 0 },
-  { name: '🍚 Rice (1 cup)', calories: 205, protein: 4, carbs: 45, fat: 0, fiber: 1, water: 0 },
-  { name: '🥑 Avocado', calories: 240, protein: 3, carbs: 12, fat: 22, fiber: 10, water: 0 },
-  { name: '🥤 Protein Shake', calories: 150, protein: 30, carbs: 5, fat: 2, fiber: 1, water: 0 },
-  { name: '🥛 Milk (1 cup)', calories: 150, protein: 8, carbs: 12, fat: 8, fiber: 0, water: 0 },
-  { name: '🍎 Apple', calories: 95, protein: 0, carbs: 25, fat: 0, fiber: 4, water: 0 },
-  { name: '🥗 Salad Bowl', calories: 120, protein: 4, carbs: 10, fat: 7, fiber: 5, water: 0 },
-  { name: '🐟 Salmon Fillet', calories: 280, protein: 35, carbs: 0, fat: 15, fiber: 0, water: 0 },
-  { name: '🥜 Almonds (1oz)', calories: 165, protein: 6, carbs: 6, fat: 14, fiber: 4, water: 0 },
-  { name: '💧 Water', calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, water: 1 },
-];
+// FOOD_DATABASE: import from '../data/foodDatabase' only in NutritionLog so the main bundle stays light.
+

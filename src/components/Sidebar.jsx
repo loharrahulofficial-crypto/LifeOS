@@ -1,43 +1,78 @@
 import { motion } from 'motion/react';
 import ThemeSwitcher from './ThemeSwitcher';
+import RadialMenu from './RadialMenu';
+import { 
+  Home, 
+  Repeat, 
+  CheckSquare, 
+  Crosshair, 
+  Dna, 
+  Dumbbell, 
+  BarChart2, 
+  Bot,
+  Orbit
+} from 'lucide-react';
 
-const NAV_ITEMS = [
-  { id: 'habits', label: 'Habits', icon: '📋' },
-  { id: 'pomodoro', label: 'Pomodoro', icon: '⏱️' },
-  { id: 'nutrition', label: 'Nutrition', icon: '🥗' },
-  { id: 'gym', label: 'Gym', icon: '🏋️' },
-  { id: 'stats', label: 'Stats', icon: '📊' },
-  { id: 'ai', label: 'AI Coach', icon: '🤖' },
+const NAV_IDS = ['dashboard', 'habits', 'tasks', 'pomodoro', 'nutrition', 'gym', 'stats', 'ai'];
+const NAV_LABELS = ['Home', 'Habits', 'Tasks', 'Focus', 'Diet', 'Gym', 'Stats', 'F.R.I.D.A.Y.'];
+
+/** One canonical row for every theme: icon order matches NAV_IDS exactly. */
+const NAV_TAB_ICONS = [
+  <Home size={20} strokeWidth={2.5} />,
+  <Repeat size={20} strokeWidth={2.5} />,
+  <CheckSquare size={20} strokeWidth={2.5} />,
+  <Crosshair size={20} strokeWidth={2.5} />,
+  <Dna size={20} strokeWidth={2.5} />,
+  <Dumbbell size={20} strokeWidth={2.5} />,
+  <BarChart2 size={20} strokeWidth={2.5} />,
+  <Bot size={20} strokeWidth={2.5} />
 ];
 
-export default function Sidebar({ activeTab, setActiveTab, themeProps }) {
+export default function Sidebar({ activeTab, setActiveTab, themeProps, levelProps }) {
+  const navItems = NAV_IDS.map((id, i) => ({
+    id,
+    label: NAV_LABELS[i],
+    icon: NAV_TAB_ICONS[i],
+  }));
+
+  const level = levelProps?.level || 1;
+  const rank = levelProps?.rank || { title: 'Player', color: 'var(--accent)' };
+
   return (
     <>
       {/* Desktop Sidebar */}
       <aside className="app-sidebar">
         <div style={{ padding: '0 1.5rem', marginBottom: '2rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <span style={{ fontSize: '1.8rem' }}>⚡</span>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: `color-mix(in srgb, ${rank.color} 20%, transparent)`, border: `2px solid ${rank.color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 900, color: rank.color, textShadow: '0 0 10px rgba(0,0,0,0.5)' }}>
+              {level}
+            </div>
             <div>
               <h1 style={{
-                fontSize: '1.3rem',
-                fontWeight: 800,
-                background: 'linear-gradient(135deg, var(--gradient-start), var(--gradient-end))',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
+                fontSize: '1.2rem',
+                fontWeight: 900,
+                color: 'var(--text-primary)',
                 letterSpacing: '-0.02em',
+                marginBottom: '0.1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem'
               }}>
+                <Orbit className="text-accent" size={20} strokeWidth={2.5} style={{ color: 'var(--accent)' }} /> 
                 LifeOS
               </h1>
-              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '-2px' }}>Personal Tracker</p>
+              <p style={{ fontSize: '0.65rem', color: rank.color, textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em' }}>
+                {rank.title}
+              </p>
             </div>
           </div>
         </div>
 
         <nav style={{ flex: 1, padding: '0 0.75rem' }}>
-          {NAV_ITEMS.map(item => (
+          {navItems.map(item => (
             <motion.button
               key={item.id}
+              type="button"
               onClick={() => setActiveTab(item.id)}
               whileTap={{ scale: 0.97 }}
               style={{
@@ -75,7 +110,7 @@ export default function Sidebar({ activeTab, setActiveTab, themeProps }) {
                   }}
                 />
               )}
-              <span style={{ fontSize: '1.2rem' }}>{item.icon}</span>
+              <span style={{ fontSize: '1.2rem', lineHeight: 1 }} aria-hidden>{item.icon}</span>
               <span>{item.label}</span>
             </motion.button>
           ))}
@@ -87,36 +122,8 @@ export default function Sidebar({ activeTab, setActiveTab, themeProps }) {
         </div>
       </aside>
 
-      {/* Mobile Bottom Nav */}
-      <nav className="bottom-nav">
-        {NAV_ITEMS.map(item => (
-          <motion.button
-            key={item.id}
-            onClick={() => setActiveTab(item.id)}
-            whileTap={{ scale: 0.9 }}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '0.2rem',
-              padding: '0.4rem 0.6rem',
-              borderRadius: '10px',
-              border: 'none',
-              cursor: 'pointer',
-              background: activeTab === item.id ? 'var(--accent-subtle)' : 'transparent',
-              color: activeTab === item.id ? 'var(--accent)' : 'var(--text-muted)',
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: '0.65rem',
-              fontWeight: activeTab === item.id ? 600 : 400,
-              transition: 'all 0.2s ease',
-              minWidth: '52px',
-            }}
-          >
-            <span style={{ fontSize: '1.2rem' }}>{item.icon}</span>
-            <span>{item.label}</span>
-          </motion.button>
-        ))}
-      </nav>
+      {/* Mobile Radial Menu */}
+      <RadialMenu navItems={navItems} activeTab={activeTab} setActiveTab={setActiveTab} />
     </>
   );
 }
