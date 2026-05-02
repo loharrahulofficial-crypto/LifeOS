@@ -1,0 +1,5 @@
+# Enforce LF for shell scripts — prevents husky hooks from being re-encoded
+.husky/pre-commit text eol=lf
+.husky/pre-push    text eol=lf
+.husky/commit-msg  text eol=lf
+*.sh               text eol=lf
